@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ورود به پنل مدیریت کلینیک دندانپزشکی ۲۰۲۶</title>
+    <!-- لود فونت پرمیوم وزیرمتن -->
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Vazirmatn', sans-serif;
+            background-color: #090d16;
+            letter-spacing: -0.015em;
+            /* هاله نوری لوکس در پس‌زمینه تاریک */
+            background-image: 
+                radial-gradient(circle at 100% 0%, rgba(59, 130, 246, 0.08) 0%, transparent 50%),
+                radial-gradient(circle at 0% 100%, rgba(139, 92, 246, 0.05) 0%, transparent 45%);
+            background-attachment: fixed;
+        }
+
+        /* کارت شیشه‌ای گلس‌مورفیک فوق حرفه‌ای */
+        .glass-login-card {
+            background: rgba(17, 24, 39, 0.7);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 32px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .glass-login-card:hover {
+            box-shadow: 0 30px 60px -12px rgba(59, 130, 246, 0.12);
+        }
+
+        /* فیلدهای ورودی پرمیوم */
+        .login-input {
+            width: 100%;
+            padding: 14px 44px 14px 16px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 14px;
+            font-family: inherit;
+            font-size: 0.9rem;
+            color: #ffffff;
+            outline: none;
+            transition: all 0.25s ease;
+        }
+        .login-input:focus {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+        }
+        .login-input-icon {
+            position: absolute;
+            right: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 1rem;
+            transition: color 0.25s;
+        }
+        .login-input-wrapper:focus-within .login-input-icon {
+            color: #3b82f6;
+        }
+
+        /* دکمه ورود گرادیان درخشان */
+        .btn-login-gradient {
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            color: #ffffff;
+            font-weight: 700;
+            padding: 14px;
+            border-radius: 14px;
+            box-shadow: 0 4px 20px rgba(37, 99, 235, 0.25);
+            transition: all 0.25s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .btn-login-gradient:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 24px rgba(37, 99, 235, 0.35);
+            filter: brightness(1.05);
+        }
+        .btn-login-gradient:active {
+            transform: translateY(1px);
+        }
+
+        /* دکمه لودینگ چرخان */
+        .spinner {
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top: 3px solid #fff;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: none;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* انیمیشن لرزش کارت در صورت ورود اشتباه */
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-6px); }
+            40%, 80% { transform: translateX(6px); }
+        }
+        .shake {
+            animation: shake 0.4s ease-in-out;
+        }
+    </style>
+
+</head>
+<body class="font-vazir min-h-screen flex items-center justify-center p-6 antialiased">
+
+    <div class="w-full max-w-[450px]">
+        
+        <!-- کارت لاگین شیشه‌ای مدرن -->
+        <div class="glass-login-card p-8 md:p-10 relative" id="loginCard">
+            
+            <!-- لوگو و هدر لاگین -->
+            <div class="text-center mb-8">
+                <div class="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white text-2xl mx-auto mb-4 shadow-lg shadow-blue-500/20">
+                    <i class="fas fa-tooth"></i>
+                </div>
+                <h1 class="text-2xl font-black text-white tracking-tight">پنل مدیریت کلینیک دندانپزشکی</h1>
+                <p class="text-xs text-slate-400 font-semibold mt-2">سامانه یکپارچه پایش وضعیت بیماران و کنترل دسترسی‌ها</p>
+            </div>
+
+            <!-- پیغام خطا متنی شیک -->
+            <div id="errorAlert" class="hidden mb-6 p-3.5 rounded-xl bg-red-950/30 border border-red-900/40 text-red-400 text-xs font-semibold text-center flex items-center gap-2 justify-center">
+                <i class="fas fa-exclamation-circle text-red-500 text-sm"></i>
+                <span id="errorMessage">نام کاربری یا کلمه عبور اشتباه است</span>
+            </div>
+
+            <!-- فرم لاگین -->
+            <form id="loginForm" class="flex flex-col gap-5">
+                <!-- فیلد نام کاربری -->
+                <div class="flex flex-col gap-2">
+                    <label for="username" class="text-slate-300 font-bold text-xs">شماره تماس (نام کاربری)</label>
+                    <div class="login-input-wrapper relative flex items-center">
+                        <i class="fas fa-phone-alt login-input-icon"></i>
+                        <input type="text" id="username" class="login-input font-bold" placeholder="مثال: 09337593737" required autocomplete="username">
+                    </div>
+                </div>
+
+                <!-- فیلد کلمه عبور -->
+                <div class="flex flex-col gap-2">
+                    <label for="password" class="text-slate-300 font-bold text-xs">کلمه عبور</label>
+                    <div class="login-input-wrapper relative flex items-center">
+                        <i class="fas fa-lock login-input-icon"></i>
+                        <input type="password" id="password" class="login-input" placeholder="••••••••" required autocomplete="current-password">
+                    </div>
+                </div>
+
+                <!-- دکمه سابمیت و لاگین -->
+                <button type="submit" class="btn-login-gradient mt-2 w-full flex items-center justify-center gap-2" id="submitBtn">
+                    <span id="btnText">ورود به پنل مدیریت</span>
+                    <div class="spinner" id="btnSpinner"></div>
+                </button>
+            </form>
+
+
+
+        </div>
+
+        <!-- پاورقی مینی‌مال -->
+        <p class="text-center text-[10px] text-slate-500 font-semibold mt-6">پورتال ادمین مطب دندانپزشکی © ۲۰۲۶ . تمام حقوق محفوظ است.</p>
+
+    </div>
+
+
+
+    <!-- فراخوانی اسکریپت‌های سیستمی، دیتابیس سوپابیس و لاگین جداشده -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/supabaseClient.js"></script>
+    <script src="js/database.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/login.js"></script>
+</body>
+</html>

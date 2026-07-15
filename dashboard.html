@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>پنل کاربری مطب دکتر تهمتن</title>
+    <!-- پایش امنیت نشست بیمار با اسکریپت جدا شده -->
+    <script src="js/auth.js"></script>
+    <script>
+        if (window.Auth) {
+            window.Auth.checkSessionAndRedirect('dashboard');
+        } else if (localStorage.getItem('adminLoggedIn') !== 'true') {
+            window.location.href = 'index.html';
+        }
+    </script>
+    <!-- لود فونت پرمیوم وزیرمتن با تمامی اوزان -->
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@100;200;300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class'
+        }
+    </script>
+            <style>
+        :root {
+            /* 2026 Refined Light Mode - Slate-Indigo Hybrid (High Contrast & Softer Tones) */
+            --bg-2026: #f8fafc; /* Ultra soft, clean off-white */
+            --card-2026: #ffffff; /* Crisp white cards */
+            --border-2026: rgba(15, 23, 42, 0.06); /* Invisible Slate-900 hairline borders */
+            --text-main: #0f172a; /* Slate 900 - outstanding contrast and readability */
+            --text-secondary: #334155; /* Slate 700 - rich label color */
+            --text-muted: #475569; /* Slate 600 - meets WCAG 4.5:1 text-contrast on white */
+            --field-bg: #f1f5f9; /* Slate 100 for elegant background-inputs */
+            --header-bg: rgba(255, 255, 255, 0.85); /* Crystal glass header */
+            --shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.03); /* Layered modern soft shadows */
+            --shadow-lg: 0 16px 36px rgba(15, 23, 42, 0.05); /* Premium depth shadow */
+            --welcome-gradient: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            --welcome-text: #ffffff;
+            --welcome-sub: #94a3b8;
+            --bento-stat-bg: #ffffff;
+            --accent-glow: rgba(99, 102, 241, 0.05);
+        }
+        
+        body.dark {
+            /* 2026 Futuristic Obsidian/Titanium Dark Mode - Cozy, High-Tech, Premium */
+            --bg-2026: #050811; /* Space dark navy */
+            --card-2026: rgba(13, 20, 38, 0.65); /* Translucent glass cards */
+            --border-2026: rgba(255, 255, 255, 0.05); /* Extremely delicate hairline border */
+            --text-main: #f8fafc; /* Crisp silver metallic */
+            --text-secondary: #cbd5e1; /* Soft metallic silver */
+            --text-muted: #94a3b8; /* Slate-400 */
+            --field-bg: rgba(18, 25, 47, 0.6); /* Translucent input background */
+            --header-bg: rgba(5, 8, 17, 0.8); /* Seamless floating header */
+            --shadow-sm: 0 4px 20px rgba(0, 0, 0, 0.4); /* Strong light control shadows */
+            --shadow-lg: 0 24px 50px rgba(0, 0, 0, 0.55); /* Ambient space shadow */
+            --welcome-gradient: linear-gradient(135deg, #1e1b4b 0%, #0d0b26 60%, #02040a 100%); /* Celestial mesh */
+            --welcome-text: #f8fafc;
+            --welcome-sub: #94a3b8;
+            --bento-stat-bg: rgba(13, 20, 38, 0.65); /* Elegant dark glass */
+            --accent-glow: rgba(99, 102, 241, 0.15);
+        }
+
+        body {
+            background-color: var(--bg-2026);
+            font-family: 'Vazirmatn', sans-serif;
+            color: var(--text-main);
+            line-height: 1.625;
+            letter-spacing: -0.015em;
+            overflow-x: hidden;
+            transition: background-color 0.5s cubic-bezier(0.16, 1, 0.3, 1), color 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+            background-image: 
+                radial-gradient(circle at 90% 10%, rgba(99, 102, 241, 0.03) 0%, transparent 45%),
+                radial-gradient(circle at 10% 90%, rgba(139, 92, 246, 0.02) 0%, transparent 40%);
+            background-attachment: fixed;
+        }
+
+        body.dark {
+            /* Floating celestial gradients in space */
+            background-image: 
+                radial-gradient(circle at 90% 15%, rgba(59, 130, 246, 0.08) 0%, transparent 45%),
+                radial-gradient(circle at 10% 85%, rgba(99, 102, 241, 0.06) 0%, transparent 45%),
+                radial-gradient(circle at 50% 50%, rgba(13, 20, 38, 0.5) 0%, transparent 100%);
+        }
+
+        /* Glassmorphism Header */
+        .glass-header-premium {
+            background: var(--header-bg);
+            backdrop-filter: blur(24px) saturate(180%);
+            -webkit-backdrop-filter: blur(24px) saturate(180%);
+            border-bottom: 1px solid var(--border-2026);
+            transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        body.dark .glass-header-premium {
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Settings Dropdown Glassmorphism - Premium & Modern 2026 */
+        #settingsDropdown {
+            background: var(--card-2026);
+            border: 1px solid var(--border-2026);
+            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
+            backdrop-filter: blur(24px) saturate(180%);
+            -webkit-backdrop-filter: blur(24px) saturate(180%);
+            transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+            transform: scale(0.95);
+        }
+        
+        /* Dark Mode Settings Glowing Accent & Shadows */
+        body.dark #settingsDropdown {
+            border-color: rgba(99, 102, 241, 0.15); /* Sleek neon indigo border */
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.65), 0 0 20px rgba(99, 102, 241, 0.08); /* Indigo back-glow */
+        }
+
+        /* Dropdown Divider */
+        .dropdown-divider {
+            height: 1px;
+            background: var(--border-2026);
+            margin: 6px 4px;
+        }
+
+        /* Hover states for settings dropdown items */
+        .dropdown-item-hover {
+            cursor: pointer;
+            border: 1px solid transparent;
+            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .dropdown-item-hover:hover {
+            background: var(--field-bg);
+            border-color: var(--border-2026);
+            transform: translateX(-2px);
+        }
+        body.dark .dropdown-item-hover:hover {
+            border-color: rgba(255, 255, 255, 0.04);
+        }
+
+        /* Bento Welcome Card */
+        .bento-card-welcome {
+
+            background: var(--welcome-gradient);
+            color: var(--welcome-text);
+            border: 1px solid var(--border-2026);
+            border-radius: 24px;
+            padding: 32px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            position: relative;
+            overflow: hidden;
+            box-shadow: var(--shadow-lg);
+            transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .bento-card-welcome::before {
+            content: '';
+            position: absolute;
+            top: -60px;
+            left: -60px;
+            width: 260px;
+            height: 260px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(139, 92, 246, 0.15) 0%, transparent 70%);
+            filter: blur(40px);
+            pointer-events: none;
+            transition: all 0.5s ease;
+        }
+        body.dark .bento-card-welcome::before {
+            background: radial-gradient(circle, rgba(147, 51, 234, 0.2) 0%, transparent 75%);
+        }
+        
+        /* Modern Glassmorphic Statistics Cards */
+        .bento-card-stat {
+            background: var(--bento-stat-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border-2026);
+            border-radius: 24px;
+            padding: 22px 24px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            min-height: 145px;
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            position: relative;
+            overflow: hidden;
+            box-shadow: var(--shadow-sm);
+        }
+        .bento-card-stat:hover {
+            transform: translateY(-4px);
+            border-color: rgba(99, 102, 241, 0.25);
+            box-shadow: var(--shadow-lg);
+        }
+        body.dark .bento-card-stat:hover {
+            border-color: rgba(99, 102, 241, 0.4);
+            box-shadow: 0 16px 32px rgba(0, 0, 0, 0.5), 0 0 15px rgba(99, 102, 241, 0.1);
+        }
+
+        /* Subtle glowing aura on hover for stats */
+        .stat-hover-glow {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            transition: opacity 0.4s ease;
+            pointer-events: none;
+            z-index: 0;
+            filter: blur(40px);
+            border-radius: 24px;
+        }
+        .bento-card-stat:hover .stat-hover-glow {
+            opacity: 0.08;
+        }
+        body.dark .bento-card-stat:hover .stat-hover-glow {
+            opacity: 0.12;
+        }
+
+        /* Premium Buttons */
+        .btn-premium-dark {
+            background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%);
+            color: #ffffff;
+            border-radius: 14px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            padding: 12px 24px;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            box-shadow: 0 4px 15px rgba(79, 70, 229, 0.25);
+        }
+        .btn-premium-dark:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(79, 70, 229, 0.35);
+            filter: brightness(1.1);
+        }
+
+        .btn-premium-light {
+            background: var(--card-2026);
+            color: var(--text-secondary);
+            border: 1px solid var(--border-2026);
+            backdrop-filter: blur(12px);
+            border-radius: 14px;
+            font-size: 0.82rem;
+            font-weight: 700;
+            padding: 11px 22px;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            box-shadow: var(--shadow-sm);
+        }
+        .btn-premium-light:hover {
+            background: var(--field-bg);
+            color: var(--text-main);
+            border-color: rgba(99, 102, 241, 0.3);
+            transform: translateY(-1px);
+        }
+        body.dark .btn-premium-light:hover {
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Search input container */
+        .search-wrapper-premium {
+            position: relative;
+            background: var(--card-2026);
+            border: 1px solid var(--border-2026);
+            border-radius: 16px;
+            padding: 2px;
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            box-shadow: var(--shadow-sm);
+            backdrop-filter: blur(12px);
+        }
+        .search-wrapper-premium:focus-within {
+            border-color: #4f46e5;
+            box-shadow: var(--shadow-lg), 0 0 15px rgba(79, 70, 229, 0.12);
+        }
+        body.dark .search-wrapper-premium:focus-within {
+            border-color: #6366f1;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 0 15px rgba(99, 102, 241, 0.25);
+        }
+        .search-input-premium {
+            width: 100%;
+            padding: 13px 48px 13px 18px;
+            background: transparent;
+            border: none;
+            font-family: inherit;
+            font-size: 0.88rem;
+            color: var(--text-main);
+            outline: none;
+        }
+
+        /* Search keyboard hint */
+        .keyboard-hint {
+            position: absolute;
+            left: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(0, 0, 0, 0.04);
+            border: 1px solid var(--border-2026);
+            padding: 2px 8px;
+            border-radius: 8px;
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            pointer-events: none;
+            display: none;
+        }
+        body.dark .keyboard-hint {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        /* Ultimate Glassmorphic Patient Card 2026 */
+        .patient-card-premium {
+            background: var(--card-2026);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border-2026);
+            border-radius: 24px;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            min-height: 230px;
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            box-shadow: var(--shadow-sm);
+        }
+
+        /* Hover glows on the cards corresponding to patient status */
+        .patient-card-premium::before {
+            content: '';
+            position: absolute;
+            top: -60px;
+            right: -60px;
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: var(--status-color-glow, rgba(99, 102, 241, 0.02));
+            filter: blur(40px);
+            transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .patient-card-premium:hover {
+            border-color: var(--status-color);
+            box-shadow: var(--shadow-lg), 0 15px 35px var(--status-color-shadow);
+            transform: translateY(-6px) scale(1.01);
+        }
+        body.dark .patient-card-premium:hover {
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.55), 0 0 20px var(--status-color-shadow);
+        }
+        
+        .patient-card-premium:hover::before {
+            width: 180px;
+            height: 180px;
+            filter: blur(50px);
+            background: var(--status-color-glow-hover, rgba(99, 102, 241, 0.06));
+        }
+
+        /* Status glowing side-accent-strip */
+        .status-accent-strip {
+            position: absolute;
+            top: 24px;
+            bottom: 24px;
+            right: 0;
+            width: 4px;
+            border-radius: 4px 0 0 4px;
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            box-shadow: 0 0 8px transparent;
+        }
+        .patient-card-premium:hover .status-accent-strip {
+            box-shadow: 0 0 12px var(--status-color);
+            transform: scaleY(1.05);
+        }
+
+        /* Avatar styling with metallic reflections */
+        .avatar-frame {
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            border: 1px solid var(--border-2026);
+            padding: 3px;
+            background: linear-gradient(135deg, var(--border-2026), transparent);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.02);
+            z-index: 1;
+        }
+        body.dark .avatar-frame {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), transparent);
+        }
+        .patient-card-premium:hover .avatar-frame {
+            border-color: var(--status-color);
+            transform: rotate(-5deg);
+        }
+        .avatar-inner {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: var(--field-bg);
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+            font-size: 1.25rem;
+            transition: background-color 0.4s;
+        }
+        .avatar-inner img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* Elegant status badges with pulsating animations */
+        .status-pill-premium {
+            font-size: 0.72rem;
+            font-weight: 700;
+            padding: 6px 14px;
+            border-radius: 20px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            border: 1px solid var(--border-2026);
+            background: var(--bg-2026);
+            color: var(--text-secondary);
+            transition: all 0.4s ease;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+            z-index: 1;
+        }
+        .status-pulse-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            display: inline-block;
+            position: relative;
+        }
+        .status-pulse-dot::after {
+            content: '';
+            position: absolute;
+            inset: -3px;
+            border-radius: 50%;
+            background: inherit;
+            opacity: 0.55;
+            animation: pulse-ring-2026 1.8s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+        }
+
+        @keyframes pulse-ring-2026 {
+            0% { transform: scale(0.6); opacity: 0.8; }
+            50% { transform: scale(2.2); opacity: 0; }
+            100% { transform: scale(0.6); opacity: 0; }
+        }
+
+        /* Custom dropdown styles */
+        .select-premium {
+            padding: 11px 18px;
+            background: var(--card-2026);
+            border: 1px solid var(--border-2026);
+            border-radius: 14px;
+            font-family: inherit;
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: var(--text-secondary);
+            outline: none;
+            cursor: pointer;
+            box-shadow: var(--shadow-sm);
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            backdrop-filter: blur(12px);
+        }
+        .select-premium:hover {
+            background: var(--field-bg);
+            border-color: rgba(99, 102, 241, 0.3);
+            color: var(--text-main);
+        }
+        .select-premium:focus {
+            border-color: #4f46e5;
+            box-shadow: 0 0 12px rgba(79, 70, 229, 0.12);
+        }
+        body.dark .select-premium:focus {
+            border-color: #6366f1;
+            box-shadow: 0 0 15px rgba(99, 102, 241, 0.2);
+        }
+
+        /* Beautiful tooth rotating effect on hover */
+        .tooth-spin-hover:hover i {
+            animation: tooth-wiggle 0.6s ease-in-out;
+        }
+        @keyframes tooth-wiggle {
+            0%, 100% { transform: rotate(0deg); }
+            25% { transform: rotate(-15deg); }
+            75% { transform: rotate(15deg); }
+        }
+
+        /* Shimmer effect for load placeholders */
+        .shimmer {
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.05), transparent);
+            background-size: 200% 100%;
+            animation: loading-shimmer 1.5s infinite;
+        }
+        @keyframes loading-shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+        /* Professional Settings Menu Button - Glassmorphism & micro-interactions */
+        #settingsMenuBtn {
+            background: var(--card-2026);
+            border: 1px solid var(--border-2026);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            color: var(--text-secondary);
+            border-radius: 14px;
+            font-size: 0.8rem;
+            font-weight: 800;
+            padding: 10px 18px;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            box-shadow: var(--shadow-sm);
+        }
+        
+        #settingsMenuBtn:hover {
+            background: var(--field-bg);
+            color: var(--text-main);
+            border-color: rgba(99, 102, 241, 0.35);
+            transform: translateY(-1.5px);
+            box-shadow: var(--shadow-lg), 0 0 15px rgba(99, 102, 241, 0.05);
+        }
+        
+        /* Ultra Professional Dark Mode State for the Settings Button */
+        body.dark #settingsMenuBtn {
+            background: rgba(255, 255, 255, 0.02);
+            border-color: rgba(255, 255, 255, 0.06);
+            color: #cbd5e1;
+        }
+        
+        body.dark #settingsMenuBtn:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(99, 102, 241, 0.4);
+            color: #f8fafc;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4), 0 0 15px rgba(99, 102, 241, 0.15);
+        }
+        
+        /* Active / Expanded State for the Button (Lighting up) */
+        #settingsMenuBtn[aria-expanded="true"] {
+            background: rgba(79, 70, 229, 0.08) !important;
+            border-color: #4f46e5 !important;
+            color: #4f46e5 !important;
+            box-shadow: 0 0 20px rgba(79, 70, 229, 0.2) !important;
+        }
+        
+        body.dark #settingsMenuBtn[aria-expanded="true"] {
+            background: rgba(99, 102, 241, 0.15) !important;
+            border-color: #6366f1 !important;
+            color: #a5b4fc !important;
+            box-shadow: 0 0 25px rgba(99, 102, 241, 0.3) !important;
+        }
+
+        /* Settings Cog Icon spinning animation based on aria-expanded */
+        #settingsCogIcon {
+            transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        #settingsMenuBtn:hover #settingsCogIcon {
+            transform: rotate(90deg);
+        }
+        #settingsMenuBtn[aria-expanded="true"] #settingsCogIcon {
+            transform: rotate(180deg);
+        }
+    </style>
+</head>
+<body class="font-vazir min-h-screen antialiased">
+
+    <!-- هدر شیشه‌ای مینی‌مال کلینیک -->
+    <header class="glass-header-premium py-4 px-6 sticky top-0 z-50">
+        <div class="max-w-[1240px] mx-auto flex items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white text-xs tooth-spin-hover"><i class="fas fa-tooth"></i></div>
+                <h1 class="text-sm font-black text-slate-800 tracking-tight dark:text-white">پنل کاربری مطب دکتر تهمتن</h1>
+            </div>
+            <nav class="flex items-center gap-3">
+                <!-- منوی تنظیمات مدرن در گوشه بالا-چپ (دسترسی انحصاری به حالت تاریک و خروج) -->
+                <div class="relative inline-block text-left" id="settingsContainer">
+                    <button id="settingsMenuBtn" class="btn-premium-light py-2.5 px-3.5 text-xs flex items-center justify-center gap-2 transition-all duration-300" type="button" aria-expanded="false" aria-haspopup="true" title="تنظیمات سیستم">
+                        <i class="fas fa-cog text-slate-500 dark:text-slate-400 text-sm" id="settingsCogIcon"></i>
+                        <span class="hidden md:inline font-extrabold">تنظیمات</span>
+                        <i class="fas fa-chevron-down text-[9px] text-slate-400"></i>
+                    </button>
+                    
+                    <!-- دراپ‌داون شیشه‌ای تنظیمات لوکس -->
+                    <div id="settingsDropdown" class="absolute left-0 mt-2.5 w-64 origin-top-left rounded-2xl shadow-2xl transition-all duration-300 transform opacity-0 scale-95 pointer-events-none z-50">
+                        <div class="p-4 border-b border-slate-100 dark:border-slate-800/80">
+                            <h3 class="text-xs font-black text-slate-700 dark:text-slate-300">تنظیمات کاربری و سیستم</h3>
+                            <p class="text-[9px] text-slate-400 mt-1 font-medium">پیکربندی رابط کاربری و امنیت حساب کاربری</p>
+                        </div>
+                        <div class="p-3.5 flex flex-col gap-3">
+                            <!-- ردیف تغییر پوسته (دارک مود) -->
+                            <div class="flex items-center justify-between p-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
+                                <div class="flex flex-col gap-0.5">
+                                    <span class="text-xs font-bold text-slate-800 dark:text-slate-200">حالت تاریک</span>
+                                    <span class="text-[9px] text-slate-400">تغییر تم رنگی دشبورد</span>
+                                </div>
+                                <button id="themeToggleBtn" class="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center transition-all duration-300 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200/50 dark:border-slate-700/50" type="button" aria-label="تغییر تم">
+                                    <i class="fas fa-moon text-xs" id="themeToggleIcon"></i>
+                                </button>
+                            </div>
+                            
+                            <!-- خط جداکننده درون منو -->
+                            <div class="dropdown-divider"></div>
+                            
+                            <!-- ردیف مدیریت کاربران (انحصاری ادمین اصلی) -->
+                            <div id="adminUserManagementRow" class="hidden flex items-center justify-between p-2 rounded-xl dropdown-item-hover transition-colors cursor-pointer">
+                                <div class="flex flex-col gap-0.5 text-right">
+                                    <span class="text-xs font-bold text-slate-800 dark:text-slate-100">مدیریت کاربران</span>
+                                    <span class="text-[9px] text-slate-400 dark:text-slate-500 font-medium">تعریف پرسنل و سطح دسترسی</span>
+                                </div>
+                                <div class="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-100 dark:border-indigo-900/30 shadow-[0_2px_8px_rgba(99,102,241,0.08)]">
+                                    <i class="fas fa-users-cog text-sm"></i>
+                                </div>
+                            </div>
+                            
+                            <!-- خط جداکننده درون منو -->
+                            <div class="dropdown-divider"></div>
+                            
+                            <!-- ردیف خروج از حساب -->
+                            <button id="logoutBtn" class="w-full flex items-center justify-between p-2.5 rounded-xl text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/15 border border-transparent hover:border-red-100 dark:hover:border-red-950/20 transition-all text-right" type="button">
+                                <div class="flex flex-col gap-0.5">
+                                    <span class="text-xs font-extrabold">خروج از حساب</span>
+                                    <span class="text-[9px] text-red-400/80 dark:text-red-500/80">خروج امن از پنل کاربری</span>
+                                </div>
+                                <div class="w-8 h-8 rounded-lg bg-red-50 dark:bg-red-950/20 flex items-center justify-center text-xs">
+                                    <i class="fas fa-sign-out-alt text-xs"></i>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </nav>
+        </div>
+    </header>
+
+    <main class="max-w-[1240px] mx-auto px-6 py-12">
+        
+        <!-- بنتو چیدمان بالایی: خوش‌آمدگویی، نمودار پیشرفت درمانی، و آمارها (Bento 3-Way Grid 2026) -->
+        <div class="grid grid-cols-12 gap-6 mb-12">
+            
+            <!-- بنتوکارت اصلی ۱: خوش‌آمدگویی خلاقانه مینی‌مال لوکس با استایل داینامیک لایت/دارک -->
+            <div class="col-span-12 lg:col-span-4 bento-card-welcome flex flex-col justify-between">
+                <div class="flex flex-col gap-2.5 z-10">
+                    <span class="inline-flex self-start px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest gap-2" style="background: var(--welcome-badge-bg); color: var(--welcome-badge-text);">
+                        <i class="fas fa-chart-line text-[11px] align-middle"></i>
+                        <span>گزارش وضعیت امروز</span>
+                    </span>
+                    <h2 class="text-xl font-black leading-tight" style="color: var(--welcome-text);">سلام همکار گرامی، وقت بخیر</h2>
+                    <p class="text-[11.5px] font-semibold mt-1 leading-relaxed" style="color: var(--welcome-sub); line-height: 1.75;">به دشبورد پایش وضعیت درمانی کلینیک خوش آمدید. در زیر آمار تفصیلی و پرونده‌های فعال بیماران را به سبک شخصی پایش کنید.</p>
+                </div>
+                <div class="flex items-center gap-3 mt-6 lg:mt-4 z-10">
+                    <button class="btn-welcome-action py-2.5 px-5 text-xs" onclick="location.href='patient.html?action=new'" type="button">
+                        <i class="fas fa-plus"></i>
+                        <span>تشکیل پرونده جدید</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- بنتوکارت اصلی ۲: نمودار نیم‌دایره‌ای راندمان درمانی کلینیک (نمودار دایره ای پیشرفته جدید) -->
+            <div class="col-span-12 md:col-span-6 lg:col-span-4 bento-card-stat flex flex-col justify-between relative overflow-hidden group">
+                <div class="stat-hover-glow bg-indigo-500/5"></div>
+                <div class="flex items-center justify-between w-full mb-1 z-10">
+                    <span class="text-[10px] text-slate-400 dark:text-slate-500 font-extrabold uppercase tracking-wider">راندمان درمانی مطب</span>
+                    <span class="px-2 py-0.5 rounded-full text-[9px] font-black bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/30">نرخ موفقیت</span>
+                </div>
+                
+                <!-- نیم‌دایره انیمیشنی پیشرفت -->
+                <div class="py-3 flex items-center justify-center z-10">
+                    <svg viewBox="0 0 100 55" class="w-full max-w-[155px] mx-auto">
+                        <!-- نیم‌دایره پس‌زمینه -->
+                        <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="var(--border-2026)" stroke-width="8" stroke-linecap="round" />
+                        
+                        <!-- نیم‌دایره رنگی متحرک پیشرفت درمانی -->
+                        <path id="gaugeProgressArc" d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="url(#gaugeIndigoGradient)" stroke-width="9" stroke-linecap="round" stroke-dasharray="125.6" stroke-dashoffset="125.6" style="transition: stroke-dashoffset 1.2s cubic-bezier(0.16, 1, 0.3, 1);" />
+                        
+                        <defs>
+                            <linearGradient id="gaugeIndigoGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" stop-color="#4f46e5" />
+                                <stop offset="50%" stop-color="#6366f1" />
+                                <stop offset="100%" stop-color="#10b981" />
+                            </linearGradient>
+                        </defs>
+                        
+                        <!-- نمایش درصد در مرکز -->
+                        <text x="50" y="47" text-anchor="middle" class="font-black text-[17px] fill-slate-800 dark:fill-white transition-all" id="gaugePercentageText">۰٪</text>
+                    </svg>
+                </div>
+                
+                <!-- راهنمای کپسولی پایین نمودار -->
+                <div class="flex items-center justify-between text-[10px] text-slate-400 dark:text-slate-500 font-extrabold border-t border-slate-100 dark:border-slate-800/40 pt-2.5 mt-1 z-10">
+                    <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]"></span>اتمام درمان</span>
+                    <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.4)]"></span>تحت درمان</span>
+                </div>
+            </div>
+
+            <!-- بنتوکارت فرعی ۳: آمارها در گرید فشرده مستقل با استایل و آیکون‌های درخشان لوکس -->
+            <div class="col-span-12 md:col-span-6 lg:col-span-4 grid grid-cols-2 gap-4">
+                
+                <!-- کارت ۱: کل پرونده‌ها -->
+                <div class="bento-card-stat relative overflow-hidden group">
+                    <div class="stat-hover-glow bg-blue-500/10"></div>
+                    <div class="flex items-center justify-between w-full z-10">
+                        <span class="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider">کل پرونده‌ها</span>
+                        <div class="w-10 h-10 rounded-xl bg-blue-500/10 dark:bg-blue-500/20 text-blue-500 dark:text-blue-400 flex items-center justify-center text-sm border border-blue-500/10 dark:border-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.1)] transition-all duration-300 group-hover:scale-110 group-hover:rotate-6">
+                            <i class="fas fa-users"></i>
+                        </div>
+                    </div>
+                    <div class="flex items-baseline justify-between mt-4 z-10">
+                        <strong class="text-3xl font-black text-slate-900 dark:text-white transition-all duration-300 group-hover:translate-x-1" id="totalPatientsCount">۰</strong>
+                        <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500">ثبت‌شده در کلینیک</span>
+                    </div>
+                </div>
+
+                <!-- کارت ۲: تحت درمان -->
+                <div class="bento-card-stat relative overflow-hidden group">
+                    <div class="stat-hover-glow bg-indigo-500/10"></div>
+                    <div class="flex items-center justify-between w-full z-10">
+                        <span class="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider">تحت درمان</span>
+                        <div class="w-10 h-10 rounded-xl bg-indigo-500/10 dark:bg-indigo-500/20 text-indigo-500 dark:text-indigo-400 flex items-center justify-center text-sm border border-indigo-500/10 dark:border-indigo-500/30 shadow-[0_0_15px_rgba(99,102,241,0.1)] transition-all duration-300 group-hover:scale-110 group-hover:rotate-6">
+                            <i class="fas fa-notes-medical"></i>
+                        </div>
+                    </div>
+                    <div class="flex items-baseline justify-between mt-4 z-10">
+                        <strong class="text-3xl font-black text-indigo-600 dark:text-indigo-400 transition-all duration-300 group-hover:translate-x-1" id="underTreatmentCount">۰</strong>
+                        <span class="text-[10px] font-bold text-indigo-500">پایش فعال</span>
+                    </div>
+                </div>
+
+                <!-- کارت ۳: اتمام درمان -->
+                <div class="bento-card-stat relative overflow-hidden group">
+                    <div class="stat-hover-glow bg-emerald-500/10"></div>
+                    <div class="flex items-center justify-between w-full z-10">
+                        <span class="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider">اتمام درمان</span>
+                        <div class="w-10 h-10 rounded-xl bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-500 dark:text-emerald-400 flex items-center justify-center text-sm border border-emerald-500/10 dark:border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.1)] transition-all duration-300 group-hover:scale-110 group-hover:rotate-6">
+                            <i class="fas fa-check-double"></i>
+                        </div>
+                    </div>
+                    <div class="flex items-baseline justify-between mt-4 z-10">
+                        <strong class="text-3xl font-black text-emerald-600 dark:text-emerald-400 transition-all duration-300 group-hover:translate-x-1" id="finishedTreatmentCount">۰</strong>
+                        <span class="text-[10px] font-bold text-emerald-500">پرونده موفق</span>
+                    </div>
+                </div>
+
+                <!-- کارت ۴: سایر وضعیت‌ها -->
+                <div class="bento-card-stat relative overflow-hidden group">
+                    <div class="stat-hover-glow bg-orange-500/10"></div>
+                    <div class="flex items-center justify-between w-full z-10">
+                        <span class="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider">سایر وضعیت‌ها</span>
+                        <div class="w-10 h-10 rounded-xl bg-orange-500/10 dark:bg-orange-500/20 text-orange-500 dark:text-orange-400 flex items-center justify-center text-sm border border-orange-500/10 dark:border-orange-500/30 shadow-[0_0_15px_rgba(249,115,22,0.1)] transition-all duration-300 group-hover:scale-110 group-hover:rotate-6">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                    </div>
+                    <div class="flex items-baseline justify-between mt-4 z-10">
+                        <strong class="text-3xl font-black text-orange-600 dark:text-orange-400 transition-all duration-300 group-hover:translate-x-1" id="otherTreatmentCount">۰</strong>
+                        <span class="text-[10px] font-bold text-orange-500">تعلیق / پیگیری</span>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ابزار فیلتر و جستجو با رعایت اصول تراز تایپوگرافی -->
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-10 pb-6 border-b border-slate-100 dark:border-slate-800">
+            <!-- سرچ مینی‌مال پرمیوم -->
+            <div class="flex-1 max-w-full lg:max-w-xl">
+                <div class="search-wrapper-premium">
+                    <i class="fas fa-search absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                    <input type="text" id="dashboardSearchInput" placeholder="جستجوی نام بیمار، شماره پرونده یا خلاصه درمان..." class="search-input-premium">
+                    <span class="keyboard-hint">⌘K</span>
+                </div>
+            </div>
+            <!-- فیلتر دکمه‌ای مینی‌مال -->
+            <div class="flex items-center gap-3 self-start lg:self-auto">
+                <span class="text-slate-400 font-bold text-xs"><i class="fas fa-sliders-h"></i> فیلتر وضعیت پرونده:</span>
+                <select id="statusFilter" class="select-premium">
+                    <option value="all">همه بیماران</option>
+                    <option value="under_treatment">تحت درمان</option>
+                    <option value="finished">اتمام درمان</option>
+                    <option value="retreatment">درمان مجدد</option>
+                    <option value="suspended">توقف درمان</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- لیست کارت‌های شخصی بیماران با تایپوگرافی عالی -->
+        <div>
+            <div class="flex items-center justify-between mb-6">
+                <h3 class="text-xs font-black text-slate-400 uppercase tracking-widest"><i class="fas fa-grid-2"></i>لیست پرونده‌های کلینیک</h3>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="patientsCardsGrid">
+                <!-- بارگذاری داینامیک -->
+                <div class="col-span-full text-center py-24 text-slate-400">
+                    <i class="fas fa-spinner fa-spin text-2xl mb-3 text-slate-400"></i>
+                    <p class="font-bold text-xs text-slate-500">در حال رندر پورتفولیو ۲۰۲۶ بیماران...</p>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- مودال فوق حرفه‌ای مدیریت کاربران کلینیک (انحصاری مدیر) -->
+    <div id="userManagementModal" class="fixed inset-0 bg-slate-900/60 dark:bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none transition-all duration-300">
+        <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden transform scale-95 transition-all duration-300" id="userManagementModalCard">
+            <!-- هدر مودال -->
+            <div class="p-6 border-b border-slate-100 dark:border-slate-800/60 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center text-lg"><i class="fas fa-users-cog"></i></div>
+                    <div class="text-right">
+                        <h3 class="text-sm font-black text-slate-900 dark:text-white">مدیریت دسترسی همکاران و پرسنل</h3>
+                        <p class="text-[9px] text-slate-400 dark:text-slate-500 mt-1">تعریف شماره تماس و کلمه عبور همکاران جدید کلینیک</p>
+                    </div>
+                </div>
+                <button id="closeUserModalBtn" class="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-white flex items-center justify-center transition-colors">
+                    <i class="fas fa-times text-xs"></i>
+                </button>
+            </div>
+            
+            <!-- محتوای مودال -->
+            <div class="p-6 flex flex-col gap-6 max-h-[75vh] overflow-y-auto">
+                
+                <!-- فرم تعریف همکار جدید -->
+                <form id="newUserForm" class="flex flex-col gap-4 bg-slate-50 dark:bg-slate-950/40 p-5 rounded-2xl border border-slate-100 dark:border-slate-800/40">
+                    <h4 class="text-xs font-extrabold text-slate-800 dark:text-slate-200 flex items-center gap-1.5"><i class="fas fa-user-plus text-indigo-500 text-[10px]"></i> ثبت کاربر / همکار جدید</h4>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="flex flex-col gap-1.5 text-right">
+                            <label class="text-[10.5px] font-bold text-slate-600 dark:text-slate-400">شماره تماس (نام کاربری)</label>
+                            <input type="text" id="newUserPhone" placeholder="مثال: 09123456789" class="p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-800 dark:text-white outline-none focus:border-indigo-500 font-bold" required>
+                        </div>
+                        <div class="flex flex-col gap-1.5 text-right">
+                            <label class="text-[10.5px] font-bold text-slate-600 dark:text-slate-400">رمز عبور ورود</label>
+                            <input type="password" id="newUserPass" placeholder="••••••••" class="p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-800 dark:text-white outline-none focus:border-indigo-500" required>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center justify-between gap-4 mt-2">
+                        <div class="flex items-center gap-2">
+                            <label class="text-[10.5px] font-bold text-slate-600 dark:text-slate-400">سطح دسترسی:</label>
+                            <select id="newUserRole" class="p-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-[11px] font-bold text-slate-700 dark:text-slate-300 outline-none">
+                                <option value="staff" selected>همکار (Staff)</option>
+                                <option value="admin">مدیر (Admin)</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn-premium-dark py-2 px-4 text-[11px] flex items-center gap-2">
+                            <i class="fas fa-user-plus text-[10px]"></i>
+                            <span>افزودن همکار</span>
+                        </button>
+                    </div>
+                </form>
+
+                <!-- لیست همکاران فعلی -->
+                <div class="flex flex-col gap-3">
+                    <h4 class="text-xs font-extrabold text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><i class="fas fa-list text-[10px]"></i> لیست همکاران فعال کلینیک</h4>
+                    
+                    <!-- جدول کاربران -->
+                    <div class="border border-slate-100 dark:border-slate-800/80 rounded-2xl overflow-hidden">
+                        <table class="w-full text-right text-xs">
+                            <thead class="bg-slate-50 dark:bg-slate-950/60 text-slate-500 dark:text-slate-400 font-extrabold border-b border-slate-100 dark:border-slate-800/60">
+                                <tr>
+                                    <th class="p-3">شماره تماس</th>
+                                    <th class="p-3">نقش</th>
+                                    <th class="p-3 text-center">عملیات</th>
+                                </tr>
+                            </thead>
+                            <tbody id="usersTableBody">
+                                <!-- بارگذاری داینامیک -->
+                                <tr>
+                                    <td colspan="3" class="p-8 text-center text-slate-400">
+                                        <i class="fas fa-spinner fa-spin mr-1"></i> در حال دریافت لیست پرسنل...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- لود اسکریپت‌های سیستمی -->
+    <script src="js/supabaseClient.js"></script>
+    <script src="js/database.js"></script>
+    <script src="js/dashboard.js"></script>
+</body>
+</html>
