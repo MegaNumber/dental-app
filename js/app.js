@@ -128,7 +128,32 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function showImageSkeleton(target, label = 'در حال آماده‌سازی تصویر') {
+        if (!target) return;
+        target.setAttribute('aria-busy', 'true');
+        let skeleton = target.querySelector(':scope > .media-skeleton');
+        if (!skeleton) {
+            skeleton = document.createElement('div');
+            skeleton.className = 'media-skeleton';
+            skeleton.setAttribute('aria-hidden', 'true');
+            skeleton.innerHTML = `
+                <span class="media-skeleton-preview"><i class="fas fa-image"></i></span>
+                <span class="media-skeleton-copy"><span></span><span></span></span>
+                <small class="media-skeleton-label"></small>`;
+            target.appendChild(skeleton);
+        }
+        const labelElement = skeleton.querySelector('.media-skeleton-label');
+        if (labelElement) labelElement.textContent = label;
+    }
+
+    function hideImageSkeleton(target, force = false) {
+        if (!target || (!force && target.getAttribute('data-uploading') === 'true')) return;
+        target.removeAttribute('aria-busy');
+        target.querySelector(':scope > .media-skeleton')?.remove();
+    }
+
     function applyUploadPreview(targetRect, url) {
+        showImageSkeleton(targetRect, targetRect.getAttribute('data-uploading') === 'true' ? 'در حال پردازش و بارگذاری' : 'در حال نمایش تصویر');
         const cachedWidth = targetRect.getAttribute('data-width');
         const cachedHeight = targetRect.getAttribute('data-height');
 
@@ -149,21 +174,26 @@ document.addEventListener('DOMContentLoaded', () => {
             if(span) span.style.display = 'none';
         };
 
-        if (cachedWidth && cachedHeight) {
+        const hasCachedDimensions = cachedWidth && cachedHeight;
+        if (hasCachedDimensions) {
             applyStyles(parseInt(cachedWidth, 10), parseInt(cachedHeight, 10));
-            return;
         }
 
         const img = new Image();
         img.onload = () => {
-            targetRect.setAttribute('data-width', img.naturalWidth);
-            targetRect.setAttribute('data-height', img.naturalHeight);
-            applyStyles(img.naturalWidth, img.naturalHeight);
+            if (!hasCachedDimensions) {
+                targetRect.setAttribute('data-width', img.naturalWidth);
+                targetRect.setAttribute('data-height', img.naturalHeight);
+                applyStyles(img.naturalWidth, img.naturalHeight);
+            }
+            hideImageSkeleton(targetRect);
         };
+        img.onerror = () => hideImageSkeleton(targetRect, true);
         img.src = url;
     }
 
     function applyStoredUploadImage(targetRect, url) {
+        showImageSkeleton(targetRect, 'در حال نمایش تصویر');
         targetRect.setAttribute('data-db-url', url);
         targetRect.setAttribute('data-image-url', url);
         targetRect.classList.add('has-image');
@@ -176,6 +206,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function applyCoverImage(url) {
+        showImageSkeleton(coverZone, 'در حال نمایش تصویر کاور');
         coverZone.style.backgroundImage = `url(${url})`;
         coverZone.style.backgroundSize = 'cover';
         coverZone.style.backgroundPosition = 'center';
@@ -192,17 +223,21 @@ document.addEventListener('DOMContentLoaded', () => {
             coverZone.style.height = h + 'px';
         };
 
-        if (cachedWidth && cachedHeight) {
+        const hasCachedDimensions = cachedWidth && cachedHeight;
+        if (hasCachedDimensions) {
             applyHeight(parseInt(cachedWidth, 10), parseInt(cachedHeight, 10));
-            return;
         }
 
         const img = new Image();
         img.onload = () => {
-            coverZone.setAttribute('data-width', img.naturalWidth);
-            coverZone.setAttribute('data-height', img.naturalHeight);
-            applyHeight(img.naturalWidth, img.naturalHeight);
+            if (!hasCachedDimensions) {
+                coverZone.setAttribute('data-width', img.naturalWidth);
+                coverZone.setAttribute('data-height', img.naturalHeight);
+                applyHeight(img.naturalWidth, img.naturalHeight);
+            }
+            hideImageSkeleton(coverZone);
         };
+        img.onerror = () => hideImageSkeleton(coverZone, true);
         img.src = url;
     }
 
@@ -215,15 +250,23 @@ document.addEventListener('DOMContentLoaded', () => {
         coverZone.style.height = '';
         coverZone.style.backgroundImage = '';
         coverZone.classList.remove('has-cover');
+        hideImageSkeleton(coverZone, true);
     }
 
     function applyProfileImage(url) {
+        showImageSkeleton(profileZone, 'در حال نمایش تصویر');
         const inner = profileZone.querySelector('.profile-pic-inner');
-        inner.style.backgroundImage = `url(${url})`;
-        inner.style.backgroundSize = 'cover';
-        inner.innerHTML = '';
-        profileZone.classList.add('has-image');
         profileZone.setAttribute('data-db-url', url);
+        const img = new Image();
+        img.onload = () => {
+            inner.style.backgroundImage = `url(${url})`;
+            inner.style.backgroundSize = 'cover';
+            inner.innerHTML = '';
+            profileZone.classList.add('has-image');
+            hideImageSkeleton(profileZone);
+        };
+        img.onerror = () => hideImageSkeleton(profileZone, true);
+        img.src = url;
     }
 
     function resetProfileImage() {
@@ -236,6 +279,7 @@ document.addEventListener('DOMContentLoaded', () => {
         inner.style.backgroundImage = '';
         inner.style.backgroundSize = '';
         inner.innerHTML = '<i class="fas fa-user"></i><span>profile</span>';
+        hideImageSkeleton(profileZone, true);
     }
 
     function resetEmptyUploadRect(rect) {
@@ -248,6 +292,7 @@ document.addEventListener('DOMContentLoaded', () => {
         rect.style.backgroundImage = '';
         rect.classList.remove('has-image');
         rect.querySelector('.remove-img-btn')?.remove();
+        hideImageSkeleton(rect, true);
         const icon = rect.querySelector(':scope > i');
         const span = rect.querySelector(':scope > span');
         if (icon) icon.style.display = 'block';
@@ -433,12 +478,12 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    function buildResultFieldMarkup(field) {
+    function buildResultFieldMarkup(field, showDelete = false) {
         const inputId = `result-${field.key}`;
         const labelMarkup = `
             <div class="result-field-label-row">
                 <label class="result-field-label" for="${escapeHtml(inputId)}"><span class="result-label-text" contenteditable="false" spellcheck="false">${escapeHtml(field.label)}</span></label>
-                ${field.isDeletable ? '<button class="result-field-remove-btn" type="button" title="حذف سطر" aria-label="حذف سطر"><i class="fas fa-times"></i></button>' : ''}
+                ${showDelete ? '<button class="component-delete-btn result-field-remove-btn" type="button" title="حذف سطر" aria-label="حذف سطر"><i class="fas fa-times"></i></button>' : ''}
             </div>`;
         const inputAttrs = `class="result-field-input${field.fieldType === 'jalali-date' ? ' result-date-input' : ''}" id="${escapeHtml(inputId)}" placeholder="${escapeHtml(field.placeholder)}" value="${escapeHtml(field.value)}"`;
 
@@ -603,7 +648,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!resultGrid) return null;
         const field = normalizeResultField({ label: 'فیلد جدید', placeholder: 'وارد کنید...', allowDelete: true });
         const template = document.createElement('template');
-        template.innerHTML = buildResultFieldMarkup(field).trim();
+        template.innerHTML = buildResultFieldMarkup(field, true).trim();
         const fieldNode = template.content.firstElementChild;
         if (!fieldNode) return null;
         fieldNode.style.animation = 'fadeUp .3s ease both';
@@ -624,15 +669,13 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    function buildPatientDetailRowMarkup(row) {
+    function buildPatientDetailRowMarkup(row, showDelete = false) {
         const inputId = `patient-detail-${row.key}`;
         return `
             <div class="field-group patient-detail-field" data-patient-detail-key="${escapeHtml(row.key)}" data-patient-detail-placeholder="${escapeHtml(row.placeholder)}">
                 <div class="patient-detail-label-row">
                     <label class="result-field-label" for="${escapeHtml(inputId)}"><span class="result-label-text patient-detail-label-text" contenteditable="false" spellcheck="false">${escapeHtml(row.label)}</span></label>
-                    <button class="patient-detail-remove-btn" type="button" title="حذف سطر" aria-label="حذف سطر">
-                        <i class="fas fa-times"></i>
-                    </button>
+                    ${showDelete ? '<button class="component-delete-btn patient-detail-remove-btn" type="button" title="حذف سطر" aria-label="حذف سطر"><i class="fas fa-times"></i></button>' : ''}
                 </div>
                 <input class="patient-detail-input" type="text" id="${escapeHtml(inputId)}" placeholder="${escapeHtml(row.placeholder)}" value="${escapeHtml(row.value)}" autocomplete="off">
             </div>`;
@@ -701,7 +744,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!container) return null;
         const nextRow = normalizePatientDetailRow(row);
         const template = document.createElement('template');
-        template.innerHTML = buildPatientDetailRowMarkup(nextRow).trim();
+        template.innerHTML = buildPatientDetailRowMarkup(nextRow, true).trim();
         const node = template.content.firstElementChild;
         if (!node) return null;
         container.appendChild(node);
@@ -1066,7 +1109,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const notesContainer = getSectionNotesContainer(sectionCard);
         if (!notesContainer) return null;
         const placeholder = sectionNotePlaceholders[sectionCard.dataset.sectionKey] || 'توضیحات این بخش را وارد کنید...';
-        const note = addNoteBox(notesContainer, '', placeholder);
+        const note = addNoteBox(notesContainer, '', placeholder, true);
         note.querySelector('textarea')?.focus();
         Autosave.trigger();
         showToast('باکس توضیحات اضافه شد');
@@ -1111,17 +1154,37 @@ document.addEventListener('DOMContentLoaded', () => {
         requestAnimationFrame(() => applyUploadPreview(rect, previewUrl));
     }
 
-    function createImageCardMarkup(title, iconClass = 'fa-upload') {
+    function createImageCardMarkup(title, iconClass = 'fa-upload', showDelete = false) {
         return `
             <div class="image-upload-card-header">
                 <i class="fas ${iconClass}"></i>
                 <span class="image-upload-card-title" contenteditable="false">${escapeHtml(title)}</span>
+                ${showDelete ? '<button class="component-delete-btn image-card-delete-btn" type="button" title="حذف کادر تصویر" aria-label="حذف کادر تصویر"><i class="fas fa-trash-alt"></i></button>' : ''}
             </div>
             <label class="upload-rect" tabindex="0" role="button" aria-label="${escapeHtml(title)}">
                 <i class="fas fa-cloud-upload-alt"></i>
                 <span>آپلود تصویر</span>
                 <input type="file" accept="image/*">
             </label>`;
+    }
+
+    async function removeImageCard(card) {
+        if (!card?.isConnected) return false;
+        const confirmed = await showModal('آیا این کادر تصویر حذف شود؟');
+        if (!confirmed) return false;
+        const rect = card.querySelector('.upload-rect');
+        const dbUrl = rect?.getAttribute('data-db-url');
+        if (dbUrl) {
+            try {
+                await DB.deleteImage(dbUrl);
+            } catch (error) {
+                console.error('Error deleting image asset:', error);
+            }
+        }
+        card.remove();
+        Autosave.triggerSoon();
+        showToast('کادر تصویر حذف شد');
+        return true;
     }
 
     function closeImageCardMenus(exceptCard = null) {
@@ -1208,8 +1271,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const oldPreviewUrl = rect.getAttribute('data-image-url') || oldUrl || '';
         const oldBackground = rect.style.backgroundImage;
         const localPreviewUrl = URL.createObjectURL(blob);
-        updateLocalImagePreview(rect, localPreviewUrl);
         rect.setAttribute('data-uploading', 'true');
+        showImageSkeleton(rect, 'در حال پردازش و ذخیره ویرایش');
+        updateLocalImagePreview(rect, localPreviewUrl);
         syncSectionImageEditor();
         const file = new File([blob], `${suffix}.jpg`, { type: blob.type || 'image/jpeg' });
         DB.uploadImage(file, DB.buildImagePath(fileNumber, 'image', file))
@@ -1415,8 +1479,11 @@ document.addEventListener('DOMContentLoaded', () => {
         existingRect.remove();
 
         const toolsNode = built.querySelector('.image-card-tools');
+        const headerNode = built.matches('.image-upload-card-header')
+            ? built
+            : built.querySelector('.image-upload-card-header');
         if (toolsNode) card.prepend(toolsNode);
-        card.appendChild(built.querySelector('.image-upload-card-header'));
+        if (headerNode) card.appendChild(headerNode);
         card.appendChild(rectClone);
 
         card.classList.add('menu-ready');
@@ -1426,9 +1493,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function bindImageCardMenu(card) {
         if (!card || card._imageMenuEventsBound) return;
+        card._imageMenuBound = true;
         card._imageMenuEventsBound = true;
         const menuButton = card.querySelector('.image-card-menu-btn');
         const menu = card.querySelector('.image-card-menu');
+        const deleteButton = card.querySelector('.image-card-delete-btn');
+
+        deleteButton?.addEventListener('click', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            await removeImageCard(card);
+        });
+
         if (!menuButton || !menu) return;
 
         menuButton.addEventListener('click', (e) => {
@@ -1484,7 +1560,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 case 'add-description': {
                     const notesContainer = getImageSectionNotesContainer(card);
                     if (!notesContainer) break;
-                    const note = addNoteBox(notesContainer, '', 'توضیحات این تصویر را وارد کنید...');
+                    const note = addNoteBox(notesContainer, '', 'توضیحات این تصویر را وارد کنید...', true);
                     note.querySelector('textarea')?.focus();
                     Autosave.trigger();
                     break;
@@ -1495,14 +1571,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (card.classList.contains('move-open')) populateMoveTargets(card);
                     break;
                 case 'remove': {
-                    const confirmed = await showModal('آیا این تصویر حذف شود؟');
-                    if (!confirmed) break;
-                    const rect = card.querySelector('.upload-rect');
-                    const dbUrl = rect?.getAttribute('data-db-url');
-                    if (dbUrl) DB.deleteImage(dbUrl);
-                    card.remove();
-                    Autosave.triggerSoon();
-                    showToast('تصویر حذف شد');
+                    await removeImageCard(card);
                     break;
                 }
                 default:
@@ -1519,6 +1588,20 @@ document.addEventListener('DOMContentLoaded', () => {
             const card = menuHost.closest('.card');
             if (card) card.classList.remove('has-open-menu');
         });
+    }
+
+    async function removeSectionCard(sectionCard) {
+        if (!sectionCard?.isConnected) return false;
+        const confirmed = await showModal('آیا این کادر حذف شود؟');
+        if (!confirmed) return false;
+        const imageUrls = Array.from(sectionCard.querySelectorAll('.upload-rect[data-db-url]'))
+            .map(rect => rect.getAttribute('data-db-url'))
+            .filter(Boolean);
+        await Promise.allSettled(imageUrls.map(url => DB.deleteImage(url)));
+        sectionCard.remove();
+        Autosave.trigger();
+        showToast('کادر حذف شد');
+        return true;
     }
 
     function createSectionMenuMarkup(sectionCard) {
@@ -1615,12 +1698,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     moveSectionCard(sectionCard, 'down');
                     break;
                 case 'delete-section': {
-                    const confirmed = await showModal('آیا این کادر حذف شود؟');
-                    if (!confirmed) return;
-                    sectionCard.querySelectorAll('.upload-rect[data-db-url]').forEach(rect => DB.deleteImage(rect.getAttribute('data-db-url')));
-                    sectionCard.remove();
-                    Autosave.trigger();
-                    showToast('کادر حذف شد');
+                    await removeSectionCard(sectionCard);
                     break;
                 }
                 default:
@@ -1646,12 +1724,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const built = tools.firstElementChild;
             if (!built) return;
             const toolsNode = built.querySelector('.image-card-tools');
-            const headerNode = built.querySelector('.image-upload-card-header');
+            const headerNode = built.matches('.image-upload-card-header')
+                ? built
+                : built.querySelector('.image-upload-card-header');
             if (toolsNode) card.prepend(toolsNode);
             if (headerNode) {
                 headerNode.querySelector('.image-upload-card-title')?.setAttribute('contenteditable', 'false');
                 card.replaceChild(headerNode, header);
             }
+            card._imageMenuBound = true;
             card.classList.add('menu-ready');
             bindImageCardMenu(card);
         });
@@ -1677,11 +1758,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    function addNoteBox(container, value = '', placeholder = 'توضیحات را وارد کنید...') {
+    function addNoteBox(container, value = '', placeholder = 'توضیحات را وارد کنید...', showDelete = false) {
         const note = document.createElement('div');
         note.className = 'treatment-note-box';
         note.style.animation = 'fadeUp .3s ease both';
-        note.innerHTML = `<button class="remove-note-btn" type="button" title="حذف توضیحات"><i class="fas fa-times"></i></button><textarea class="treatment-note-text" placeholder="${placeholder}"></textarea>`;
+        note.innerHTML = `${showDelete ? '<button class="component-delete-btn remove-note-btn" type="button" title="حذف توضیحات" aria-label="حذف توضیحات"><i class="fas fa-times"></i></button>' : ''}<textarea class="treatment-note-text" placeholder="${placeholder}"></textarea>`;
         note.querySelector('textarea').value = value || '';
         container.appendChild(note);
         return note;
@@ -1722,6 +1803,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // ۲. نشانه‌گذاری به عنوان "در حال آپلود" تا Autosave آن را نگیرد
         targetRect.setAttribute('data-uploading', 'true');
+        showImageSkeleton(targetRect, 'در حال پردازش و بارگذاری');
 
         // ۳. فشرده‌سازی تصویر در پس‌زمینه
         let uploadFile = file;
@@ -1740,8 +1822,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (dbUrl) {
                 // ۵. برداشتن نشانه "در حال آپلود" و گذاشتن لینک واقعی
                 targetRect.removeAttribute('data-uploading');
-                targetRect.setAttribute('data-db-url', dbUrl);
-                targetRect.setAttribute('data-image-url', dbUrl);
+                applyStoredUploadImage(targetRect, dbUrl);
                 if (oldUrl && oldUrl !== dbUrl) DB.deleteImage(oldUrl);
                 
                 // ۶. VERY IMPORTANT: اجبار به ذخیره مجدد چون حالا لینک آماده است
@@ -1756,6 +1837,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     resetEmptyUploadRect(targetRect);
                 }
+                hideImageSkeleton(targetRect, true);
                 showToast('خطا در آپلود عکس به سرور');
             }
         } catch (error) {
@@ -1768,6 +1850,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 resetEmptyUploadRect(targetRect);
             }
+            hideImageSkeleton(targetRect, true);
             showToast('خطا در ارتباط با سرور');
         }
         
@@ -1820,6 +1903,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const oldHeight = coverZone.style.height;
         
         coverZone.setAttribute('data-uploading', 'true');
+        showImageSkeleton(coverZone, 'در حال پردازش و بارگذاری کاور');
         
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -1847,8 +1931,7 @@ document.addEventListener('DOMContentLoaded', () => {
         DB.uploadImage(uploadFile, DB.buildImagePath(fileNumber, 'cover', uploadFile)).then(url => {
             if (url) {
                 coverZone.removeAttribute('data-uploading');
-                coverZone.setAttribute('data-db-url', url);
-                coverZone.setAttribute('data-image-url', url);
+                applyCoverImage(url);
                 if (oldUrl && oldUrl !== url) DB.deleteImage(oldUrl);
                 Autosave.triggerSoon(coverZone);
             } else {
@@ -1857,6 +1940,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 coverZone.style.backgroundImage = oldBackground;
                 coverZone.style.height = oldHeight;
                 if (!oldUrl) coverZone.classList.remove('has-cover');
+                hideImageSkeleton(coverZone, true);
                 showToast('خطا در آپلود عکس کاور');
             }
         }).catch(() => {
@@ -1865,6 +1949,7 @@ document.addEventListener('DOMContentLoaded', () => {
             coverZone.style.backgroundImage = oldBackground;
             coverZone.style.height = oldHeight;
             if (!oldUrl) coverZone.classList.remove('has-cover');
+            hideImageSkeleton(coverZone, true);
             showToast('خطا در ارتباط با سرور');
         });
         coverInput.value = '';
@@ -1905,6 +1990,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const oldHtml = inner.innerHTML;
         
         profileZone.setAttribute('data-uploading', 'true');
+        showImageSkeleton(profileZone, 'در حال پردازش تصویر');
 
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -1926,7 +2012,7 @@ document.addEventListener('DOMContentLoaded', () => {
         DB.uploadImage(uploadFile, DB.buildImagePath(fileNumber, 'profile', uploadFile)).then(url => {
             if (url) {
                 profileZone.removeAttribute('data-uploading');
-                profileZone.setAttribute('data-db-url', url);
+                applyProfileImage(url);
                 if (oldUrl && oldUrl !== url) DB.deleteImage(oldUrl);
                 Autosave.triggerSoon(profileZone);
             } else {
@@ -1936,6 +2022,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 inner.style.backgroundSize = oldBackgroundSize;
                 inner.innerHTML = oldHtml;
                 if (!oldUrl) profileZone.classList.remove('has-image');
+                hideImageSkeleton(profileZone, true);
                 showToast('خطا در آپلود عکس پروفایل');
             }
         }).catch(() => {
@@ -1945,26 +2032,51 @@ document.addEventListener('DOMContentLoaded', () => {
             inner.style.backgroundSize = oldBackgroundSize;
             inner.innerHTML = oldHtml;
             if (!oldUrl) profileZone.classList.remove('has-image');
+            hideImageSkeleton(profileZone, true);
             showToast('خطا در ارتباط با سرور');
         });
         profileInput.value = '';
     });
 
     // --- رویدادهای تایپ متنی ---
-    const textInputs = ['patientName', 'fileNumber'];
-    textInputs.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) {
-            el.addEventListener('input', () => {
-                if (id === 'patientName') document.getElementById('nameDisplay').textContent = el.value.trim() || 'نام و نام خانوادگی بیمار';
-                if (id === 'fileNumber') {
-                    const normalized = normalizeFileNumber(el.value);
-                    if (normalized !== el.value) el.value = normalized;
-                    document.getElementById('fileDisplay').textContent = normalized || '---';
-                }
-                Autosave.trigger(el);
-            });
-        }
+    const firstNameInput = document.getElementById('firstName');
+    const lastNameInput = document.getElementById('lastName');
+    const patientNameInput = document.getElementById('patientName');
+
+    function composePatientName(firstName = firstNameInput?.value, lastName = lastNameInput?.value) {
+        return [firstName, lastName]
+            .map(part => String(part || '').replace(/\s+/g, ' ').trim())
+            .filter(Boolean)
+            .join(' ');
+    }
+
+    function splitPatientName(fullName = '') {
+        const parts = String(fullName || '').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+        return {
+            firstName: parts.shift() || '',
+            lastName: parts.join(' ')
+        };
+    }
+
+    function syncPatientName() {
+        const fullName = composePatientName();
+        if (patientNameInput) patientNameInput.value = fullName;
+        document.getElementById('nameDisplay').textContent = fullName || 'نام و نام خانوادگی بیمار';
+        return fullName;
+    }
+
+    [firstNameInput, lastNameInput].forEach(input => {
+        input?.addEventListener('input', () => {
+            syncPatientName();
+            Autosave.trigger(patientNameInput);
+        });
+    });
+
+    document.getElementById('fileNumber')?.addEventListener('input', (event) => {
+        const normalized = normalizeFileNumber(event.currentTarget.value);
+        if (normalized !== event.currentTarget.value) event.currentTarget.value = normalized;
+        document.getElementById('fileDisplay').textContent = normalized || '---';
+        Autosave.trigger(event.currentTarget);
     });
 
     const treatmentSummaryCard = document.getElementById('treatmentSummaryCard');
@@ -2076,27 +2188,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return addNoteBox(extractNotes, value, 'توضیحات مربوط به برداشت را وارد کنید...');
     }
 
-    document.getElementById('addTreatmentNoteBtn').addEventListener('click', () => {
-        const note = addTreatmentNote();
-        note.querySelector('textarea').focus();
-        Autosave.trigger();
-        showToast('باکس توضیحات اضافه شد');
-    });
-
-    document.getElementById('addDuringNoteBtn').addEventListener('click', () => {
-        const note = addDuringNote();
-        note.querySelector('textarea').focus();
-        Autosave.trigger();
-        showToast('باکس توضیحات حین درمان اضافه شد');
-    });
-
-    document.getElementById('addExtractNoteBtn').addEventListener('click', () => {
-        const note = addExtractNote();
-        note.querySelector('textarea').focus();
-        Autosave.trigger();
-        showToast('باکس توضیحات برداشت اضافه شد');
-    });
-
     bindNoteContainer(treatmentNotes);
     bindNoteContainer(duringNotes);
     bindNoteContainer(extractNotes);
@@ -2107,7 +2198,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const d = document.createElement('div');
         d.className = 'image-upload-card';
         d.style.animation = 'fadeUp .3s ease both';
-        d.innerHTML = createImageCardMarkup(headerText, 'fa-upload');
+        d.innerHTML = createImageCardMarkup(headerText, 'fa-upload', true);
         bindImageCardMenu(d);
         c.appendChild(d);
         bindAllRectUploads();
@@ -2116,6 +2207,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function createCustomSection(sectionData = {}) {
+        const showDelete = !sectionData.key;
         const key = sectionData.key || makeSectionKey('custom');
         const title = sectionData.title || 'کادر جدید';
         const card = document.createElement('section');
@@ -2124,35 +2216,19 @@ document.addEventListener('DOMContentLoaded', () => {
         card.dataset.printSection = key;
         card.dataset.customSection = 'true';
         card.innerHTML = `
-            <div class="card-title"><i class="fas fa-layer-group"></i><input class="inline-section-title custom-section-title" type="text" value="${escapeHtml(title)}" aria-label="عنوان کادر"><button class="delete-section-btn" type="button" title="حذف کادر"><i class="fas fa-trash"></i></button></div>
+            ${showDelete ? '<button class="component-delete-btn delete-section-btn" type="button" title="حذف کادر" aria-label="حذف کادر"><i class="fas fa-trash-alt"></i></button>' : ''}
+            <div class="card-title"><i class="fas fa-layer-group"></i><input class="inline-section-title custom-section-title" type="text" value="${escapeHtml(title)}" aria-label="عنوان کادر"></div>
             <div class="images-section custom-images" id="${key}Images"></div>
-            <div class="section-actions">
-                <button class="add-row-btn custom-add-image-btn" type="button"><i class="fas fa-plus"></i>اضافه کردن تصویر</button>
-                <button class="add-row-btn add-note-btn custom-add-note-btn" type="button"><i class="fas fa-pen"></i>اضافه کردن توضیحات</button>
-            </div>
             <div class="treatment-notes custom-notes" id="${key}Notes"></div>`;
 
         const resultCard = document.querySelector('[data-section-key="result"]');
         document.querySelector('.container').insertBefore(card, resultCard || null);
 
-        const imagesId = `${key}Images`;
         const notes = card.querySelector('.custom-notes');
         const titleInput = card.querySelector('.custom-section-title');
 
-        card.querySelector('.custom-add-image-btn').addEventListener('click', () => addImageCard(imagesId, `${titleInput.value.trim() || 'کادر جدید'} - تصویر`));
-        card.querySelector('.custom-add-note-btn').addEventListener('click', () => {
-            const note = addNoteBox(notes, '', 'توضیحات این کادر را وارد کنید...');
-            note.querySelector('textarea').focus();
-            Autosave.trigger();
-            showToast('باکس توضیحات اضافه شد');
-        });
         titleInput.addEventListener('input', () => Autosave.trigger());
-        card.querySelector('.delete-section-btn').addEventListener('click', async () => {
-            card.querySelectorAll('.upload-rect[data-db-url]').forEach(rect => DB.deleteImage(rect.getAttribute('data-db-url')));
-            card.remove();
-            Autosave.trigger();
-            showToast('کادر حذف شد');
-        });
+        card.querySelector('.delete-section-btn')?.addEventListener('click', () => removeSectionCard(card));
         bindNoteContainer(notes);
         bindAllRectUploads();
         enhanceDraggableSections();
@@ -2176,12 +2252,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     renderResultFields(RESULT_DEFAULT_FIELDS);
     bindPatientDetails();
-    document.getElementById('addPatientImgBtn').addEventListener('click', () => addImageCard('patientImages', 'تصویر جدید بیمار'));
-    document.getElementById('addDoctorImgBtn').addEventListener('click', () => addImageCard('doctorImages', 'تصویر جدید توضیحات'));
-    document.getElementById('addInitialImgBtn').addEventListener('click', () => addImageCard('initialImages', 'تصویر اولیه جدید'));
-    document.getElementById('addDuringImgBtn').addEventListener('click', () => addImageCard('duringImages', 'تصویر حین درمان جدید'));
-    document.getElementById('addFileImgBtn').addEventListener('click', () => addImageCard('fileImages', 'تصویر پرونده جدید'));
-    document.getElementById('addExtractImgBtn').addEventListener('click', () => addImageCard('extractImages', 'تصویر برداشت جدید'));
 
     // --- حذف عکس ---
     document.addEventListener('click', (e) => {
@@ -2224,25 +2294,38 @@ document.addEventListener('DOMContentLoaded', () => {
         panel.classList.toggle('open', shouldOpen);
     }
 
-    document.getElementById('dropdownToggle').addEventListener('click', (e) => {
+    const dropdownToggle = document.getElementById('dropdownToggle');
+    const syncDropdownState = () => {
+        dropdownToggle?.setAttribute('aria-expanded', String(dropdownWrapper.classList.contains('open')));
+    };
+    const closeDropdown = () => {
+        dropdownWrapper.classList.remove('open');
+        syncDropdownState();
+    };
+    dropdownToggle.addEventListener('click', (e) => {
         e.stopPropagation();
         dropdownWrapper.classList.toggle('open');
+        syncDropdownState();
     });
-    document.addEventListener('click', (e) => { if (!e.target.closest('.nav-dropdown-wrapper')) dropdownWrapper.classList.remove('open'); });
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.nav-dropdown-wrapper')) {
+            closeDropdown();
+        }
+    });
 
-    document.getElementById('searchBtn').addEventListener('click', () => { dropdownWrapper.classList.remove('open'); handleFileNumberChange(true); });
-    document.getElementById('saveNowBtn').addEventListener('click', async () => { dropdownWrapper.classList.remove('open'); await Autosave.forceSave(); showToast('داده‌ها ذخیره شدند'); });
+    document.getElementById('searchBtn').addEventListener('click', () => { closeDropdown(); handleFileNumberChange(true); });
+    document.getElementById('saveNowBtn').addEventListener('click', async () => { closeDropdown(); await Autosave.forceSave(); showToast('داده‌ها ذخیره شدند'); });
     document.getElementById('addCustomSectionBtn').addEventListener('click', () => {
-        dropdownWrapper.classList.remove('open');
+        closeDropdown();
         const card = createCustomSection();
         card.querySelector('.custom-section-title')?.focus();
         Autosave.trigger();
         showToast('کادر جدید اضافه شد');
     });
-    document.getElementById('printBtn').addEventListener('click', () => { dropdownWrapper.classList.remove('open'); closeSettingsPanels(); if (window.PrintManager) PrintManager.initiatePrint(); });
-    document.getElementById('printSettingsToggle').addEventListener('click', () => { dropdownWrapper.classList.remove('open'); toggleSettingsPanel('settingsPanel'); });
-    document.getElementById('imageSettingsToggle').addEventListener('click', () => { dropdownWrapper.classList.remove('open'); toggleSettingsPanel('imageSettingsPanel'); });
-    document.getElementById('themeSettingsToggle').addEventListener('click', () => { dropdownWrapper.classList.remove('open'); toggleSettingsPanel('themeSettingsPanel'); });
+    document.getElementById('printBtn').addEventListener('click', () => { closeDropdown(); closeSettingsPanels(); if (window.PrintManager) PrintManager.initiatePrint(); });
+    document.getElementById('printSettingsToggle').addEventListener('click', () => { closeDropdown(); toggleSettingsPanel('settingsPanel'); });
+    document.getElementById('imageSettingsToggle').addEventListener('click', () => { closeDropdown(); toggleSettingsPanel('imageSettingsPanel'); });
+    document.getElementById('themeSettingsToggle').addEventListener('click', () => { closeDropdown(); toggleSettingsPanel('themeSettingsPanel'); });
     document.getElementById('settingsCloseBtn').addEventListener('click', () => document.getElementById('settingsPanel').classList.remove('open'));
     document.getElementById('imageSettingsCloseBtn').addEventListener('click', () => document.getElementById('imageSettingsPanel').classList.remove('open'));
     document.getElementById('themeSettingsCloseBtn').addEventListener('click', () => document.getElementById('themeSettingsPanel').classList.remove('open'));
@@ -2513,12 +2596,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const themePresets = {
         clinicalBlue: {
-            accent: '#2563eb',
-            soft: '#3b82f6',
-            bg: '#f0f2f5',
+            accent: '#5b5bd6',
+            soft: '#7c78ee',
+            bg: '#f5f7fb',
             card: '#ffffff',
-            text: '#111827',
-            border: '#d1d5db',
+            text: '#162033',
+            border: '#e1e5ec',
             surface: 'clean'
         },
         emeraldCare: {
@@ -2631,12 +2714,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function setThemeFormValues(values) {
         document.getElementById('themePreset').value = values.preset || 'clinicalBlue';
-        document.getElementById('accentColor').value = values.accent || '#2563eb';
-        document.getElementById('accentSoftColor').value = values.soft || '#3b82f6';
-        document.getElementById('bgColor').value = values.bg || '#f0f2f5';
+        document.getElementById('accentColor').value = values.accent || '#5b5bd6';
+        document.getElementById('accentSoftColor').value = values.soft || '#7c78ee';
+        document.getElementById('bgColor').value = values.bg || '#f5f7fb';
         document.getElementById('cardColor').value = values.card || '#ffffff';
-        document.getElementById('textColor').value = values.text || '#111827';
-        document.getElementById('borderColor').value = values.border || '#d1d5db';
+        document.getElementById('textColor').value = values.text || '#162033';
+        document.getElementById('borderColor').value = values.border || '#e1e5ec';
         document.getElementById('surfaceTheme').value = values.surface || 'clean';
         document.getElementById('uiRadius').value = values.radius || '12px';
         document.getElementById('shadowLevel').value = values.shadow || 'soft';
@@ -2773,14 +2856,97 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- جستجو و بارگذاری ---
     const fileNumberInput = document.getElementById('fileNumber');
+    const fileSearchButton = document.getElementById('fileSearchButton');
+    const fileSearchFeedback = document.getElementById('fileSearchFeedback');
+    const standardImageSectionIds = ['patientImages', 'doctorImages', 'initialImages', 'duringImages', 'fileImages', 'extractImages'];
+    const standardSectionCards = Array.from(document.querySelectorAll('.container > .card[data-section-key]:not([data-custom-section="true"])'));
+    const pristinePatientState = {
+        imageMarkup: Object.fromEntries(standardImageSectionIds.map(id => [id, document.getElementById(id)?.innerHTML || ''])),
+        sectionOrder: standardSectionCards.map(card => card.dataset.sectionKey),
+        sectionTitles: standardSectionCards.map(card => ({
+            key: card.dataset.sectionKey,
+            title: getSectionTitleValue(card)
+        }))
+    };
     let isSearching = false;
-    fileNumberInput.addEventListener('blur', () => handleFileNumberChange(false));
     fileNumberInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); handleFileNumberChange(); } });
+    fileSearchButton?.addEventListener('click', () => handleFileNumberChange(true));
+
+    function setFileSearchState(searching, message = '') {
+        if (fileSearchButton) {
+            fileSearchButton.disabled = searching;
+            fileSearchButton.setAttribute('aria-busy', String(searching));
+            const label = fileSearchButton.querySelector('.file-search-button-label');
+            if (label) label.textContent = searching ? 'در حال جستجو' : 'جستجو';
+        }
+        fileNumberInput.setAttribute('aria-busy', String(searching));
+        if (message && fileSearchFeedback) fileSearchFeedback.textContent = message;
+    }
+
+    function resetPatientForm({ identity = null } = {}) {
+        const nextIdentity = identity || { firstName: '', lastName: '', fileNumber: '' };
+        Autosave.resetForNewPatient();
+        clearTimeout(treatmentSummarySaveTimer);
+        clearTimeout(treatmentSummaryBlurTimer);
+        closeResultDatePicker();
+        closeSectionImageEditor();
+        closeImageCardMenus();
+        closeSectionMenus();
+
+        firstNameInput.value = nextIdentity.firstName || '';
+        lastNameInput.value = nextIdentity.lastName || '';
+        fileNumberInput.value = normalizeFileNumber(nextIdentity.fileNumber || '');
+        syncPatientName();
+        document.getElementById('fileDisplay').textContent = fileNumberInput.value || '---';
+
+        coverInput.value = '';
+        profileInput.value = '';
+        resetCoverImage();
+        resetProfileImage();
+
+        const select = document.getElementById('patientStatus');
+        if (select) {
+            select.value = 'under_treatment';
+            updateStatusSelectorUI(select);
+        }
+
+        if (treatmentSummaryInput) {
+            treatmentSummaryInput.value = '';
+            syncTreatmentSummaryDisplay('');
+            setTreatmentSummaryExpanded(false);
+        }
+
+        renderPatientDetailRows([]);
+        document.querySelectorAll('.custom-card[data-custom-section="true"]').forEach(card => card.remove());
+        treatmentNotes.innerHTML = '';
+        duringNotes.innerHTML = '';
+        extractNotes.innerHTML = '';
+        renderResultFields(RESULT_DEFAULT_FIELDS);
+
+        standardImageSectionIds.forEach(id => {
+            const container = document.getElementById(id);
+            if (container) container.innerHTML = pristinePatientState.imageMarkup[id];
+        });
+
+        const pageContainer = document.querySelector('.container');
+        pristinePatientState.sectionOrder.forEach(key => {
+            const card = pageContainer?.querySelector(`.card[data-section-key="${CSS.escape(key)}"]`);
+            if (card) pageContainer.appendChild(card);
+        });
+        applySavedSectionTitles(pristinePatientState.sectionTitles);
+        enhanceDraggableSections();
+        bindAllRectUploads();
+
+        setFileSearchState(false, 'شماره پرونده را وارد کرده و جستجو را بزنید.');
+        Autosave.primeImageSectionState(null);
+        Autosave.updateStatus('آماده', '#9ca3af');
+    }
 
     async function handleFileNumberChange(showEmptyWarning = false) {
         if (isSearching) return;
         const fileNumber = normalizeFileNumber(fileNumberInput.value);
         if (!fileNumber) {
+            setFileSearchState(false, 'برای جستجو، شماره پرونده را وارد کنید.');
             if (showEmptyWarning) {
                 showToast('ابتدا شماره پرونده را وارد کنید');
                 fileNumberInput.focus();
@@ -2789,27 +2955,62 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (fileNumberInput.value !== fileNumber) fileNumberInput.value = fileNumber;
         isSearching = true;
+        setFileSearchState(true, `در حال جستجوی پرونده ${toPersianDigits(fileNumber)}...`);
         Autosave.updateStatus('در حال جستجو...', '#3b82f6');
-        const patient = await DB.getPatient(fileNumber);
-        if (patient) {
-            Autosave.updateStatus('پرونده پیدا شد...', '#22c55e');
-            renderPatientData(patient);
-            Autosave.currentPatientId = patient.id;
-            Autosave.updateStatus('پرونده بارگذاری شد ✓', '#22c55e');
-            showToast('پرونده بارگذاری شد');
-        } else {
-            Autosave.updateStatus('پرونده یافت نشد', '#ef4444');
-            const userWantsToCreate = await showModal(`شماره پرونده "${fileNumber}" موجود نمی‌باشد. ایجاد شود؟`);
-            if (userWantsToCreate) { Autosave.currentPatientId = null; Autosave.forceSave(); showToast('پرونده جدید ایجاد شد'); }
-            else { fileNumberInput.value = ''; document.getElementById('fileDisplay').textContent = '---'; Autosave.updateStatus('آماده', '#9ca3af'); }
+        try {
+            const patient = await DB.getPatient(fileNumber);
+            if (patient) {
+                Autosave.updateStatus('پرونده پیدا شد...', '#22c55e');
+                renderPatientData(patient);
+                Autosave.currentPatientId = patient.id;
+                Autosave.updateStatus('پرونده بارگذاری شد ✓', '#22c55e');
+                setFileSearchState(true, `پرونده ${toPersianDigits(fileNumber)} با موفقیت بارگذاری شد.`);
+                showToast('پرونده بارگذاری شد');
+            } else {
+                Autosave.updateStatus('پرونده یافت نشد', '#ef4444');
+                setFileSearchState(true, `پرونده‌ای با شماره ${toPersianDigits(fileNumber)} یافت نشد.`);
+                const userWantsToCreate = await showModal(`شماره پرونده "${fileNumber}" موجود نمی‌باشد. ایجاد شود؟`);
+                if (userWantsToCreate) {
+                    const identity = {
+                        firstName: firstNameInput.value,
+                        lastName: lastNameInput.value,
+                        fileNumber
+                    };
+                    resetPatientForm({ identity });
+                    const savedPatient = await Autosave.forceSave({ allowCreate: true });
+                    if (savedPatient?.id) {
+                        setFileSearchState(true, `پرونده جدید با شماره ${toPersianDigits(fileNumber)} ایجاد شد.`);
+                        showToast('پرونده جدید ایجاد شد');
+                    } else {
+                        setFileSearchState(true, 'ایجاد پرونده با خطا مواجه شد. دوباره تلاش کنید.');
+                        showToast('خطا در ایجاد پرونده جدید');
+                    }
+                } else {
+                    fileNumberInput.value = '';
+                    document.getElementById('fileDisplay').textContent = '---';
+                    Autosave.updateStatus('آماده', '#9ca3af');
+                    setFileSearchState(true, 'شماره پرونده را وارد کرده و جستجو را بزنید.');
+                }
+            }
+        } catch (error) {
+            console.error('خطا در جستجوی پرونده:', error);
+            Autosave.updateStatus('خطا در جستجو', '#ef4444');
+            setFileSearchState(true, 'جستجوی پرونده با خطا مواجه شد. دوباره تلاش کنید.');
+            showToast('خطا در جستجوی پرونده');
+        } finally {
+            isSearching = false;
+            setFileSearchState(false);
         }
-        isSearching = false;
     }
 
     function renderPatientData(patient) {
-        document.getElementById('patientName').value = patient.name || '';
-        document.getElementById('nameDisplay').textContent = patient.name || 'نام و نام خانوادگی بیمار';
-        document.getElementById('fileDisplay').textContent = patient.file_number || '---';
+        const nameParts = splitPatientName(patient.name || '');
+        resetPatientForm({
+            identity: {
+                ...nameParts,
+                fileNumber: patient.file_number || fileNumberInput.value
+            }
+        });
         if (patient.cover_url) applyCoverImage(patient.cover_url);
         else resetCoverImage();
         if (patient.profile_url) applyProfileImage(patient.profile_url);
@@ -2853,7 +3054,11 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.custom-card[data-custom-section="true"]').forEach(card => {
             sectionMap[card.dataset.sectionKey] = `${card.dataset.sectionKey}Images`;
         });
-        Object.values(sectionMap).forEach(id => { const c = document.getElementById(id); if(c) c.innerHTML = ''; });
+        const imageSectionsWithData = new Set((patient.images || []).map(image => image.section));
+        Object.entries(sectionMap).forEach(([section, id]) => {
+            const container = document.getElementById(id);
+            if (container && imageSectionsWithData.has(section)) container.innerHTML = '';
+        });
         const imageTitleMap = new Map((patientMeta.imageTitles || []).filter(item => item && item.url).map(item => [item.url, item.title || '']));
 
         if (patient.images && patient.images.length > 0) {
@@ -2932,35 +3137,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const fileNumberParam = urlParams.get('fileNumber');
 
     if (actionParam === 'new') {
-        // ایجاد پرونده جدید به صورت خودکار
-        document.getElementById('fileNumber').value = '';
-        document.getElementById('patientName').value = '';
-        document.getElementById('nameDisplay').textContent = 'نام و نام خانوادگی بیمار';
-        document.getElementById('fileDisplay').textContent = '---';
-        resetCoverImage();
-        resetProfileImage();
-        const select = document.getElementById('patientStatus');
-        if (select) {
-            select.value = 'under_treatment';
-            updateStatusSelectorUI(select);
-        }
-        const summaryInput = document.getElementById('treatmentSummary');
-        if (summaryInput) {
-            summaryInput.value = '';
-            syncTreatmentSummaryDisplay('');
-            setTreatmentSummaryExpanded(false);
-        }
-        renderPatientDetailRows([]);
-        document.querySelectorAll('.custom-card[data-custom-section="true"]').forEach(card => card.remove());
-        document.getElementById('treatmentNotes').innerHTML = '';
-        document.getElementById('duringNotes').innerHTML = '';
-        document.getElementById('extractNotes').innerHTML = '';
-        document.getElementById('resultGrid').innerHTML = '';
-        const sectionMap = { 'patient_info': 'patientImages', 'doctor_notes': 'doctorImages', 'initial': 'initialImages', 'during': 'duringImages', 'file_image': 'fileImages', 'extract': 'extractImages' };
-        Object.values(sectionMap).forEach(id => { const c = document.getElementById(id); if(c) c.innerHTML = ''; });
-        Autosave.currentPatientId = null;
+        resetPatientForm();
         setTimeout(() => {
-            document.getElementById('fileNumber').focus();
+            firstNameInput.focus();
             showToast('آماده برای تشکیل پرونده جدید');
         }, 300);
     } else if (fileNumberParam) {

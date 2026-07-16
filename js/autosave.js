@@ -9,9 +9,11 @@ const Autosave = {
     pendingSaveRequested: false,
     imageSectionSignatures: new Map(),
     imageStatePatientId: null,
+    contextVersion: 0,
 
     trigger(sourceElement, options = {}) {
         if (sourceElement && sourceElement.id === 'fileNumber') return;
+        if (sourceElement && !sourceElement.isConnected) return;
         clearTimeout(this.timeoutId);
         this.updateStatus('در حال ذخیره...', '#f59e0b');
         this.timeoutId = setTimeout(() => {
@@ -23,17 +25,21 @@ const Autosave = {
         this.trigger(sourceElement, { delay: this.fastSaveDelay });
     },
 
-    async executeSave() {
+    async executeSave(options = {}) {
         if (this.hasPendingUploads()) {
             this.updateStatus('در انتظار پایان آپلود...', '#f59e0b');
             clearTimeout(this.timeoutId);
-            this.timeoutId = setTimeout(() => this.executeSave(), 800);
+            this.timeoutId = setTimeout(() => this.executeSave(options), 800);
             return;
         }
 
         const fileNumber = document.getElementById('fileNumber').value.trim();
         if (!fileNumber) {
             this.updateStatus('نیاز به شماره پرونده', '#ef4444');
+            return;
+        }
+        if (!this.currentPatientId && !options.allowCreate) {
+            this.updateStatus('ابتدا شماره پرونده را جستجو کنید', '#f59e0b');
             return;
         }
 
@@ -44,6 +50,7 @@ const Autosave = {
         }
         this.isSaving = true;
         this.pendingSaveRequested = false;
+        const saveContextVersion = this.contextVersion;
 
         const patientData = {
             name: document.getElementById('patientName').value.trim(),
@@ -58,9 +65,12 @@ const Autosave = {
             const savedPatient = await DB.savePatientInfo(patientData);
             
             if (savedPatient && savedPatient.id) {
-                this.currentPatientId = savedPatient.id;
-                await this.syncChangedImageSections(savedPatient.id);
-                this.updateStatus('ذخیره شد ✓', '#22c55e');
+                if (saveContextVersion === this.contextVersion) {
+                    this.currentPatientId = savedPatient.id;
+                    await this.syncChangedImageSections(savedPatient.id);
+                    this.updateStatus('ذخیره شد ✓', '#22c55e');
+                }
+                return savedPatient;
             } else {
                 this.updateStatus('خطا در ذخیره!', '#ef4444');
             }
@@ -70,7 +80,7 @@ const Autosave = {
         } finally {
             // در هر صورت قفل را باز کن
             this.isSaving = false; 
-            if (this.pendingSaveRequested) {
+            if (this.pendingSaveRequested && saveContextVersion === this.contextVersion) {
                 this.trigger();
             }
         }
@@ -206,7 +216,17 @@ const Autosave = {
         if(span) span.textContent = text;
     },
 
-    async forceSave() {
+    resetForNewPatient() {
+        clearTimeout(this.timeoutId);
+        this.timeoutId = null;
+        this.contextVersion += 1;
+        this.currentPatientId = null;
+        this.pendingSaveRequested = false;
+        this.imageSectionSignatures.clear();
+        this.imageStatePatientId = null;
+    },
+
+    async forceSave(options = {}) {
         clearTimeout(this.timeoutId);
         while(this.hasPendingUploads()) {
             this.updateStatus('در انتظار پایان آپلود...', '#f59e0b');
@@ -217,7 +237,7 @@ const Autosave = {
             await new Promise(r => setTimeout(r, 200));
         }
         this.updateStatus('در حال ذخیره...', '#f59e0b');
-        await this.executeSave();
+        return this.executeSave({ allowCreate: options.allowCreate !== false });
     }
 };
 

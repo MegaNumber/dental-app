@@ -1,497 +1,565 @@
-// js/dashboard.js
-
 document.addEventListener('DOMContentLoaded', async () => {
-    
-    // فالبک هوشمند برای همکارانی که از قبل لاگین مانده‌اند (به صورت پیش‌فرض ادمین اصلی قلمداد می‌شوند)
     if (localStorage.getItem('adminLoggedIn') === 'true' && !localStorage.getItem('userPhone')) {
         localStorage.setItem('userPhone', '09337593737');
         localStorage.setItem('userRole', 'admin');
     }
-    
-    let allPatients = [];
 
-    // مدیریت تم تاریک/روشن فوق حرفه‌ای دشبورد (Dark Mode Toggle)
-    const themeToggleBtn = document.getElementById('themeToggleBtn');
-    const themeToggleIcon = document.getElementById('themeToggleIcon');
-    const body = document.body;
-
-    function applyTheme(theme) {
-        if (theme === 'dark') {
-            body.classList.add('dark');
-            document.documentElement.classList.add('dark');
-            if (themeToggleIcon) {
-                themeToggleIcon.className = 'fas fa-sun text-yellow-400';
-            }
-            localStorage.setItem('dashboardTheme', 'dark');
-        } else {
-            body.classList.remove('dark');
-            document.documentElement.classList.remove('dark');
-            if (themeToggleIcon) {
-                themeToggleIcon.className = 'fas fa-moon';
-            }
-            localStorage.setItem('dashboardTheme', 'light');
-        }
-    }
-
-    // لود تنظیمات تم ترجیحی کاربر از حافظه مرورگر
-    const savedTheme = localStorage.getItem('dashboardTheme') || 'light';
-    applyTheme(savedTheme);
-
-    themeToggleBtn?.addEventListener('click', () => {
-        const isDark = body.classList.contains('dark');
-        applyTheme(isDark ? 'light' : 'dark');
-    });
-
-    // مبدل تاریخ شمسی مستقل دشبورد
-    function toJalali(gy, gm, gd) {
-        const gdm = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
-        const gy2 = gm > 2 ? gy + 1 : gy;
-        let days = 355666 + (365 * gy) + Math.floor((gy2 + 3) / 4) - Math.floor((gy2 + 99) / 100) + Math.floor((gy2 + 399) / 400) + gd + gdm[gm - 1];
-        let jy = -1595 + (33 * Math.floor(days / 12053));
-        days %= 12053;
-        jy += 4 * Math.floor(days / 1461);
-        days %= 1461;
-        if (days > 365) {
-            jy += Math.floor((days - 1) / 365);
-            days = (days - 1) % 365;
-        }
-        let jm, jd;
-        if (days < 186) {
-            jm = 1 + Math.floor(days / 31);
-            jd = 1 + (days % 31);
-        } else {
-            jm = 7 + Math.floor((days - 186) / 30);
-            jd = 1 + ((days - 186) % 30);
-        }
-        return { jy, jm, jd };
-    }
+    const state = {
+        patients: [],
+        status: 'all',
+        query: '',
+        range: 7,
+        view: localStorage.getItem('dashboardView') || 'grid',
+        loaded: false,
+        renderFrame: 0
+    };
 
     const PERSIAN_DIGITS = '۰۱۲۳۴۵۶۷۸۹';
+    const STATUS_CONFIG = {
+        under_treatment: { label: 'تحت درمان', color: '#716ee8', background: 'var(--primary-soft)' },
+        finished: { label: 'تکمیل‌شده', color: '#16a879', background: 'var(--green-soft)' },
+        retreatment: { label: 'درمان مجدد', color: '#b36ade', background: '#f7edfc' },
+        suspended: { label: 'توقف درمان', color: '#e59734', background: 'var(--amber-soft)' }
+    };
+
+    const elements = {
+        body: document.body,
+        themeIcon: document.getElementById('themeToggleIcon'),
+        themeModeText: document.getElementById('themeModeText'),
+        sidebarThemeLabel: document.getElementById('sidebarThemeLabel'),
+        settingsMenuBtn: document.getElementById('settingsMenuBtn'),
+        settingsDropdown: document.getElementById('settingsDropdown'),
+        searchInput: document.getElementById('dashboardSearchInput'),
+        statusFilter: document.getElementById('statusFilter'),
+        cardsGrid: document.getElementById('patientsCardsGrid'),
+        resultsLabel: document.getElementById('patientResultsLabel'),
+        trendSvg: document.getElementById('trendChartSvg'),
+        donutSvg: document.getElementById('statusDonutSvg'),
+        chartTooltip: document.getElementById('chartTooltip'),
+        userModal: document.getElementById('userManagementModal'),
+        usersTableBody: document.getElementById('usersTableBody')
+    };
+
     function toPersianDigits(value) {
-        return String(value || '').replace(/\d/g, d => PERSIAN_DIGITS[d] || d);
+        return String(value ?? '').replace(/\d/g, digit => PERSIAN_DIGITS[digit]);
     }
 
     function toEnglishDigits(value) {
-        const p = '۰۱۲۳۴۵۶۷۸۹';
-        const a = '٠١٢٣٤٥٦٧٨٩';
-        return String(value || '')
-            .replace(/[۰-۹]/g, d => String(p.indexOf(d)))
-            .replace(/[٠-٩]/g, d => String(a.indexOf(d)));
+        const persian = '۰۱۲۳۴۵۶۷۸۹';
+        const arabic = '٠١٢٣٤٥٦٧٨٩';
+        return String(value ?? '')
+            .replace(/[۰-۹]/g, digit => String(persian.indexOf(digit)))
+            .replace(/[٠-٩]/g, digit => String(arabic.indexOf(digit)));
     }
 
     function escapeHtml(value) {
-        return String(value ?? '').replace(/[&<>"']/g, (ch) => ({
-            '&': '&amp;',
-            '<': '&lt;',
-            '>': '&gt;',
-            '"': '&quot;',
-            "'": '&#39;'
-        })[ch] || ch);
+        return String(value ?? '').replace(/[&<>"']/g, character => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        })[character]);
     }
 
     function parsePatientMeta(patient) {
         const patientMeta = (patient.results || []).find(item => item && item.type === 'patient_meta') || {};
         return {
             status: patientMeta.patientStatus || 'under_treatment',
-            summary: patient.summary || patient.treatment_summary || patientMeta.treatmentSummary || patientMeta.summary || 'خلاصه درمانی برای این بیمار ثبت نگردیده است.'
+            summary: patient.summary || patient.treatment_summary || patientMeta.treatmentSummary || patientMeta.summary || 'خلاصه درمانی برای این پرونده ثبت نشده است.'
         };
     }
 
-    function renderPatientCards(patients) {
-        const grid = document.getElementById('patientsCardsGrid');
-        if (!grid) return;
+    function getStatusConfig(status) {
+        return STATUS_CONFIG[status] || { label: 'نیازمند پیگیری', color: '#e59734', background: 'var(--amber-soft)' };
+    }
 
-        if (patients.length === 0) {
-            grid.innerHTML = `
-                <div class="col-span-full text-center py-20 text-slate-400 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm">
-                    <i class="fas fa-folder-open text-3xl mb-3 text-slate-300"></i>
-                    <p class="font-bold text-sm text-slate-600 dark:text-slate-400">هیچ پرونده‌ای یافت نشد</p>
-                    <p class="text-[10px] text-slate-400 mt-1">با فیلتر یا متن دیگری جستجو نمایید</p>
+    function formatDate(dateValue, options = {}) {
+        if (!dateValue) return 'ثبت نشده';
+        try {
+            return new Intl.DateTimeFormat('fa-IR-u-ca-persian', {
+                year: options.short ? undefined : 'numeric',
+                month: options.short ? 'short' : '2-digit',
+                day: '2-digit'
+            }).format(new Date(dateValue));
+        } catch (_) {
+            return 'ثبت نشده';
+        }
+    }
+
+    function setText(id, value) {
+        const element = document.getElementById(id);
+        if (element) element.textContent = value;
+    }
+
+    function getCounts() {
+        return state.patients.reduce((counts, patient) => {
+            const status = parsePatientMeta(patient).status;
+            counts.total += 1;
+            if (status === 'under_treatment') counts.under += 1;
+            else if (status === 'finished') counts.finished += 1;
+            else counts.other += 1;
+            return counts;
+        }, { total: 0, under: 0, finished: 0, other: 0 });
+    }
+
+    function applyTheme(theme) {
+        const isDark = theme === 'dark';
+        elements.body.classList.toggle('dark', isDark);
+        document.documentElement.classList.toggle('dark', isDark);
+        document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
+        localStorage.setItem('dashboardTheme', theme);
+        if (elements.themeIcon) elements.themeIcon.className = isDark ? 'fas fa-sun' : 'fas fa-moon';
+        document.querySelectorAll('#desktopThemeBtn i').forEach(icon => {
+            icon.className = isDark ? 'fas fa-sun' : 'fas fa-moon';
+        });
+        if (elements.themeModeText) elements.themeModeText.textContent = isDark ? 'تیره' : 'روشن';
+        if (elements.sidebarThemeLabel) elements.sidebarThemeLabel.textContent = isDark ? 'تیره' : 'روشن';
+        const themeColor = document.querySelector('meta[name="theme-color"]');
+        if (themeColor) themeColor.content = isDark ? '#0d1019' : '#f5f7fb';
+        if (state.patients.length) renderCharts();
+    }
+
+    function toggleTheme() {
+        applyTheme(elements.body.classList.contains('dark') ? 'light' : 'dark');
+    }
+
+    function updateTodayLabel() {
+        const formatted = new Intl.DateTimeFormat('fa-IR-u-ca-persian', {
+            weekday: 'long', day: 'numeric', month: 'long'
+        }).format(new Date());
+        setText('todayLabel', formatted);
+    }
+
+    function filteredPatients() {
+        const normalizedQuery = toEnglishDigits(state.query.toLowerCase().trim());
+        return state.patients.filter(patient => {
+            const meta = parsePatientMeta(patient);
+            const searchable = toEnglishDigits(`${patient.name || ''} ${patient.file_number || ''} ${meta.summary}`.toLowerCase());
+            const statusMatch = state.status === 'all'
+                || meta.status === state.status
+                || (state.status === 'other' && !['under_treatment', 'finished'].includes(meta.status));
+            return searchable.includes(normalizedQuery) && statusMatch;
+        });
+    }
+
+    function renderPatients() {
+        if (!elements.cardsGrid) return;
+        const patients = filteredPatients();
+        elements.cardsGrid.classList.toggle('is-list', state.view === 'list');
+        setText('patientResultsLabel', `${toPersianDigits(patients.length)} پرونده از ${toPersianDigits(state.patients.length)} پرونده`);
+
+        if (!patients.length) {
+            elements.cardsGrid.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-folder-open"></i>
+                    <strong>پرونده‌ای با این مشخصات پیدا نشد</strong>
+                    <span>عبارت جستجو یا فیلتر وضعیت را تغییر دهید.</span>
                 </div>`;
             return;
         }
 
-        grid.innerHTML = patients.map(p => {
-            const meta = parsePatientMeta(p);
-
-            // استایل‌دهی پالت رنگی سبک شخصی ۲۰۲۶ (مینی‌مال لوکس با پشتیبانی کامل از تم تیره نئونی)
-            let statusColor = '#3b82f6'; // تحت درمان (آبی)
-            let badgeText = 'تحت درمان';
-            let bgPillClass = 'bg-blue-50 dark:bg-blue-950/20 text-blue-700 dark:text-blue-400 border-blue-100 dark:border-blue-900/30 font-extrabold';
-            let glowColor = 'rgba(59, 130, 246, 0.02)';
-            let glowHoverColor = 'rgba(59, 130, 246, 0.05)';
-            let shadowColor = 'rgba(59, 130, 246, 0.08)';
-
-            if (meta.status === 'finished') {
-                statusColor = '#10b981'; // اتمام درمان (سبز)
-                badgeText = 'اتمام درمان';
-                bgPillClass = 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/30 font-extrabold';
-                glowColor = 'rgba(16, 185, 129, 0.02)';
-                glowHoverColor = 'rgba(16, 185, 129, 0.05)';
-                shadowColor = 'rgba(16, 185, 129, 0.08)';
-            } else if (meta.status === 'retreatment') {
-                statusColor = '#8b5cf6'; // درمان مجدد (بنفش)
-                badgeText = 'درمان مجدد';
-                bgPillClass = 'bg-purple-50 dark:bg-purple-950/20 text-purple-700 dark:text-purple-400 border-purple-100 dark:border-purple-900/30 font-extrabold';
-                glowColor = 'rgba(139, 92, 246, 0.02)';
-                glowHoverColor = 'rgba(139, 92, 246, 0.05)';
-                shadowColor = 'rgba(139, 92, 246, 0.08)';
-            } else if (meta.status === 'suspended') {
-                statusColor = '#f97316'; // توقف درمان (نارنجی)
-                badgeText = 'توقف درمان';
-                bgPillClass = 'bg-orange-50 dark:bg-orange-950/20 text-orange-700 dark:text-orange-400 border-orange-100 dark:border-orange-900/30 font-extrabold';
-                glowColor = 'rgba(249, 115, 22, 0.02)';
-                glowHoverColor = 'rgba(249, 115, 22, 0.05)';
-                shadowColor = 'rgba(249, 115, 22, 0.08)';
-            }
-
-            let visitDate = 'ثبت نشده';
-            if (p.updated_at || p.created_at) {
-                try {
-                    const d = new Date(p.updated_at || p.created_at);
-                    const jalali = toJalali(d.getFullYear(), d.getMonth() + 1, d.getDate());
-                    visitDate = toPersianDigits(`${jalali.jy}/${String(jalali.jm).padStart(2, '0')}/${String(jalali.jd).padStart(2, '0')}`);
-                } catch (e) {
-                    console.error(e);
-                }
-            }
-
-            const profileImgHtml = p.profile_url
-                ? `<img src="${escapeHtml(p.profile_url)}" alt="avatar">`
-                : `<i class="fas fa-user text-slate-300 dark:text-slate-600"></i>`;
-
+        elements.cardsGrid.innerHTML = patients.map(patient => {
+            const meta = parsePatientMeta(patient);
+            const status = getStatusConfig(meta.status);
+            const profile = patient.profile_url
+                ? `<img src="${escapeHtml(patient.profile_url)}" alt="تصویر ${escapeHtml(patient.name || 'بیمار')}" loading="lazy">`
+                : '<i class="fas fa-user"></i>';
+            const fileNumber = escapeHtml(patient.file_number || '---');
             return `
-                <div class="patient-card-premium" onclick="location.href='patient.html?fileNumber=${escapeHtml(p.file_number)}'" style="--status-color: ${statusColor}; --status-color-glow: ${glowColor}; --status-color-glow-hover: ${glowHoverColor}; --status-color-shadow: ${shadowColor};">
-                    <!-- نوار عمودی رنگی در حاشیه کارت برای نمایش سبک شخصی وضعیت -->
-                    <div class="status-accent-strip" style="background-color: ${statusColor};"></div>
-
-                    <!-- بخش بالایی کارت با ساختار مرتب و تراز عالی -->
-                    <div class="flex items-center gap-4 mb-4">
-                        <div class="avatar-frame">
-                            <div class="avatar-inner">
-                                ${profileImgHtml}
-                            </div>
-                        </div>
-                        <div class="flex flex-col min-width-0">
-                            <span class="text-sm font-extrabold text-slate-800 dark:text-slate-100 truncate max-w-[170px]" title="${escapeHtml(p.name)}">${escapeHtml(p.name || 'بیمار بدون نام')}</span>
-                            <span class="text-[10px] text-slate-400 font-bold mt-0.5">پرونده: <strong class="text-slate-600 dark:text-slate-300 font-bold">${toPersianDigits(p.file_number)}</strong></span>
-                        </div>
-                    </div>
-
-                    <!-- خلاصه درمان مینی‌مال با لاین هیت بسیار خوانای ۱.۷ فارسی -->
-                    <div class="flex-1 mb-5">
-                        <p class="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed line-clamp-2" title="${escapeHtml(meta.summary)}" style="line-height: 1.7;">
-                            ${escapeHtml(meta.summary)}
-                        </p>
-                    </div>
-
-                    <!-- بخش پایینی کارت (بج تپنده مدرن سبک شخصی ۲۰۲۶) -->
-                    <div class="flex items-center justify-between pt-3.5 border-t border-slate-100 dark:border-slate-800/80 gap-2">
-                        <span class="text-[10px] text-slate-400 dark:text-slate-500 font-black"><i class="fas fa-calendar-day mr-1"></i>آخرین ویزیت: ${visitDate}</span>
-                        <span class="status-pill-premium ${bgPillClass}">
-                            <span class="status-pulse-dot" style="background-color: ${statusColor};"></span>
-                            <span class="text-[10.5px]">${badgeText}</span>
+                <article class="patient-card" tabindex="0" role="link" data-file-number="${fileNumber}"
+                    style="--status-color:${status.color};--status-bg:${status.background}">
+                    <div class="patient-card-header">
+                        <span class="patient-avatar">${profile}</span>
+                        <span class="patient-identity">
+                            <strong>${escapeHtml(patient.name || 'بیمار بدون نام')}</strong>
+                            <span>شماره پرونده: ${toPersianDigits(patient.file_number || '---')}</span>
                         </span>
+                        <span class="patient-arrow"><i class="fas fa-arrow-left"></i></span>
                     </div>
-                </div>`;
-        }).join('');
-    }
-
-    async function loadDashboardData() {
-        if (!window.DB) {
-            console.error('DB Object not found');
-            return;
-        }
-
-        const patients = await window.DB.getAllPatients();
-        allPatients = patients;
-
-        let total = patients.length;
-        let underTreatment = 0;
-        let finished = 0;
-        let other = 0;
-
-        patients.forEach(p => {
-            const meta = parsePatientMeta(p);
-            if (meta.status === 'under_treatment') underTreatment++;
-            else if (meta.status === 'finished') finished++;
-            else other++;
-        });
-
-        const totalEl = document.getElementById('totalPatientsCount');
-        const underEl = document.getElementById('underTreatmentCount');
-        const finishedEl = document.getElementById('finishedTreatmentCount');
-        const otherEl = document.getElementById('otherTreatmentCount');
-
-        if (totalEl) totalEl.textContent = toPersianDigits(total);
-        if (underEl) underEl.textContent = toPersianDigits(underTreatment);
-        if (finishedEl) finishedEl.textContent = toPersianDigits(finished);
-        if (otherEl) otherEl.textContent = toPersianDigits(other);
-
-        // محاسبه و آپدیت داینامیک نمودار پیشرفت نیم‌دایره‌ای (نرخ موفقیت درمان)
-        const successRate = total > 0 ? Math.round((finished / total) * 100) : 0;
-        const gaugeArc = document.getElementById('gaugeProgressArc');
-        const gaugeText = document.getElementById('gaugePercentageText');
-        if (gaugeArc && gaugeText) {
-            const dashLength = 125.6;
-            const offset = dashLength - (dashLength * successRate / 100);
-            gaugeArc.style.strokeDashoffset = offset;
-            gaugeText.textContent = toPersianDigits(successRate) + '٪';
-        }
-
-        renderPatientCards(allPatients);
-    }
-
-    function filterAndRender() {
-        const searchInput = document.getElementById('dashboardSearchInput');
-        const statusFilter = document.getElementById('statusFilter');
-        
-        if (!searchInput || !statusFilter) return;
-
-        const query = toEnglishDigits(searchInput.value.toLowerCase().trim());
-        const selectedStatus = statusFilter.value;
-
-        const filtered = allPatients.filter(p => {
-            const meta = parsePatientMeta(p);
-            
-            const nameMatch = (p.name || '').toLowerCase().includes(query);
-            const fileMatch = (p.file_number || '').toLowerCase().includes(query);
-            const summaryMatch = (meta.summary || '').toLowerCase().includes(query);
-            const textMatch = nameMatch || fileMatch || summaryMatch;
-
-            const statusMatch = selectedStatus === 'all' || meta.status === selectedStatus;
-
-            return textMatch && statusMatch;
-        });
-
-        renderPatientCards(filtered);
-    }
-
-    // === سیستم تعاملی مدیریت همکاران و کاربران کلینیک (ویژه مدیر ادمین اصلی) ===
-    const userRole = localStorage.getItem('userRole') || 'staff';
-    const currentUserPhone = localStorage.getItem('userPhone') || '';
-    
-    // انحصار دسترسی به پنل تعریف کاربران فقط و فقط برای ادمین اصلی (09337593737)
-    // کاربران جدید تعریف شده توسط ادمین اصلی دیگر به این بخش دسترسی نخواهند داشت
-    const adminUserManagementRow = document.getElementById('adminUserManagementRow');
-    if (adminUserManagementRow) {
-        if (currentUserPhone === '09337593737') {
-            adminUserManagementRow.classList.remove('hidden');
-        } else {
-            adminUserManagementRow.classList.add('hidden');
-        }
-    }
-
-    const userManagementModal = document.getElementById('userManagementModal');
-    const userManagementModalCard = document.getElementById('userManagementModalCard');
-    const closeUserModalBtn = document.getElementById('closeUserModalBtn');
-    const newUserForm = document.getElementById('newUserForm');
-    const usersTableBody = document.getElementById('usersTableBody');
-
-    // تابع کمکی برای نمایش پیغام پاپ‌آپ کوتاه
-    function showLocalToast(message) {
-        if (window.showToast) {
-            window.showToast(message);
-        } else {
-            alert(message);
-        }
-    }
-
-    // لود مجدد و رندر لیست همکاران
-    async function loadUsersList() {
-        if (!usersTableBody || !window.DB) return;
-        usersTableBody.innerHTML = `
-            <tr>
-                <td colspan="3" class="p-8 text-center text-slate-400">
-                    <i class="fas fa-spinner fa-spin mr-1"></i> در حال دریافت لیست پرسنل...
-                </td>
-            </tr>`;
-
-        const users = await window.DB.getUsers();
-        if (users.length === 0) {
-            usersTableBody.innerHTML = `
-                <tr>
-                    <td colspan="3" class="p-8 text-center text-slate-400 font-bold">
-                        <i class="fas fa-user-slash mb-2 text-lg"></i>
-                        <p>هیچ همکاری در دیتابیس ثبت نشده است.</p>
-                    </td>
-                </tr>`;
-            return;
-        }
-
-        usersTableBody.innerHTML = users.map(user => {
-            const isMainAdmin = user.phone === '09337593737';
-            const isSelf = user.phone === currentUserPhone;
-            
-            let roleBadge = '<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-50 text-blue-700 border border-blue-100 dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-900/30">همکار (Staff)</span>';
-            if (user.role === 'admin') {
-                roleBadge = '<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-indigo-50 text-indigo-700 border border-indigo-100 dark:bg-indigo-950/20 dark:text-indigo-400 dark:border-indigo-900/30">مدیر (Admin)</span>';
-            }
-
-            // غیرفعال کردن دکمه حذف برای خود ادمین اصلی یا ادمینی که لاگین کرده است
-            const deleteBtnHtml = (isMainAdmin || isSelf)
-                ? `<button class="text-slate-300 dark:text-slate-700 cursor-not-allowed" title="غیرقابل حذف" disabled><i class="fas fa-trash-alt"></i></button>`
-                : `<button class="text-red-500 hover:text-red-700 transition-colors delete-user-btn" data-id="${user.id}" data-phone="${user.phone}" title="حذف کاربر"><i class="fas fa-trash-alt"></i></button>`;
-
-            return `
-                <tr class="border-b border-slate-100 dark:border-slate-800/40 hover:bg-slate-50/50 dark:hover:bg-slate-950/20 transition-colors">
-                    <td class="p-3 font-extrabold text-slate-800 dark:text-slate-100">${user.phone}</td>
-                    <td class="p-3">${roleBadge}</td>
-                    <td class="p-3 text-center">${deleteBtnHtml}</td>
-                </tr>`;
+                    <p class="patient-summary">${escapeHtml(meta.summary)}</p>
+                    <div class="patient-card-footer">
+                        <span class="patient-date"><i class="far fa-calendar"></i> آخرین ویرایش: ${formatDate(patient.updated_at || patient.created_at)}</span>
+                        <span class="status-badge">${status.label}</span>
+                    </div>
+                </article>`;
         }).join('');
 
-        // اتصال رویدادهای کلیک به دکمه‌های حذف
-        document.querySelectorAll('.delete-user-btn').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                // محافظت امنیتی کلاینت-ساید
-                if (currentUserPhone !== '09337593737') {
-                    showLocalToast('شما دسترسی مجاز برای حذف کاربران را ندارید.');
-                    return;
-                }
-
-                const userId = btn.getAttribute('data-id');
-                const userPhone = btn.getAttribute('data-phone');
-                if (confirm(`آیا از حذف همکار با شماره تماس ${userPhone} مطمئن هستید؟`)) {
-                    const result = await window.DB.deleteUser(userId);
-                    if (result.success) {
-                        showLocalToast('همکار با موفقیت حذف گردید.');
-                        loadUsersList();
-                    } else {
-                        showLocalToast(result.message);
-                    }
+        elements.cardsGrid.querySelectorAll('.patient-card').forEach(card => {
+            const openPatient = () => {
+                window.location.href = `patient.html?fileNumber=${encodeURIComponent(card.dataset.fileNumber)}`;
+            };
+            card.addEventListener('click', openPatient);
+            card.addEventListener('keydown', event => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    openPatient();
                 }
             });
         });
     }
 
-    // باز کردن مودال مدیریت کاربران
-    adminUserManagementRow?.addEventListener('click', () => {
-        if (userManagementModal && userManagementModalCard) {
-            // بستن منوی تنظیمات شیشه‌ای ابتدا
-            if (settingsDropdown) {
-                settingsDropdown.classList.add('opacity-0', 'scale-95', 'pointer-events-none');
-                settingsDropdown.classList.remove('opacity-100', 'scale-100');
-                
-            }
-            
-            userManagementModal.classList.remove('opacity-0', 'pointer-events-none');
-            userManagementModalCard.classList.remove('scale-95');
-            userManagementModalCard.classList.add('scale-100');
-            loadUsersList();
-        }
-    });
+    function schedulePatientRender() {
+        if (state.renderFrame) return;
+        state.renderFrame = window.requestAnimationFrame(() => {
+            state.renderFrame = 0;
+            renderPatients();
+        });
+    }
 
-    // بستن مودال
+    function setStatusFilter(status) {
+        state.status = status;
+        if (elements.statusFilter) elements.statusFilter.value = status;
+        document.querySelectorAll('#statusFilterChips button').forEach(button => {
+            const isSelected = button.dataset.status === status;
+            button.classList.toggle('is-selected', isSelected);
+            button.setAttribute('aria-pressed', String(isSelected));
+        });
+        document.querySelectorAll('#statusLegend button').forEach(button => {
+            const isSelected = button.dataset.status === status;
+            button.classList.toggle('is-selected', isSelected);
+            button.setAttribute('aria-pressed', String(isSelected));
+        });
+        renderPatients();
+        document.getElementById('patientsSection')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function activitySeries(days) {
+        const now = new Date();
+        const bucketCount = days === 7 ? 7 : days === 30 ? 10 : 12;
+        const bucketSize = days / bucketCount;
+        const buckets = Array.from({ length: bucketCount }, (_, index) => {
+            const endDaysAgo = days - ((index + 1) * bucketSize);
+            const date = new Date(now);
+            date.setDate(now.getDate() - Math.max(0, Math.round(endDaysAgo)));
+            return { value: 0, label: formatDate(date, { short: true }) };
+        });
+
+        state.patients.forEach(patient => {
+            const value = patient.updated_at || patient.created_at;
+            if (!value) return;
+            const age = (now - new Date(value)) / 86400000;
+            if (age < 0 || age > days) return;
+            const bucketIndex = Math.min(bucketCount - 1, Math.max(0, bucketCount - 1 - Math.floor(age / bucketSize)));
+            buckets[bucketIndex].value += 1;
+        });
+        return buckets;
+    }
+
+    function smoothPath(points) {
+        if (points.length < 2) return '';
+        return points.reduce((path, point, index) => {
+            if (index === 0) return `M ${point.x} ${point.y}`;
+            const previous = points[index - 1];
+            const middleX = (previous.x + point.x) / 2;
+            return `${path} C ${middleX} ${previous.y}, ${middleX} ${point.y}, ${point.x} ${point.y}`;
+        }, '');
+    }
+
+    function renderTrendChart() {
+        if (!elements.trendSvg) return;
+        const series = activitySeries(state.range);
+        const width = 760;
+        const height = 260;
+        const padding = { top: 18, right: 28, bottom: 35, left: 26 };
+        const plotWidth = width - padding.right - padding.left;
+        const plotHeight = height - padding.top - padding.bottom;
+        const maxValue = Math.max(4, ...series.map(item => item.value));
+        const points = series.map((item, index) => ({
+            ...item,
+            x: padding.right + (index * plotWidth / Math.max(1, series.length - 1)),
+            y: padding.top + plotHeight - (item.value / maxValue * plotHeight)
+        }));
+        const path = smoothPath(points);
+        const areaPath = `${path} L ${points.at(-1).x} ${padding.top + plotHeight} L ${points[0].x} ${padding.top + plotHeight} Z`;
+        const gridLines = Array.from({ length: 5 }, (_, index) => {
+            const y = padding.top + index * plotHeight / 4;
+            const value = Math.round(maxValue - index * maxValue / 4);
+            return `<line class="chart-grid-line" x1="${padding.right}" y1="${y}" x2="${width - padding.left}" y2="${y}"></line>
+                <text class="chart-axis-label" x="${width - 4}" y="${y + 3}" text-anchor="end">${toPersianDigits(value)}</text>`;
+        }).join('');
+        const labelStep = series.length > 10 ? 2 : 1;
+        const labels = points.map((point, index) => index % labelStep === 0
+            ? `<text class="chart-axis-label" x="${point.x}" y="${height - 8}" text-anchor="middle">${escapeHtml(point.label)}</text>`
+            : '').join('');
+        const pointElements = points.map((point, index) => `
+            <circle class="chart-point" tabindex="0" role="button" aria-label="${escapeHtml(point.label)}، ${toPersianDigits(point.value)} فعالیت"
+                data-index="${index}" cx="${point.x}" cy="${point.y}" r="5"></circle>`).join('');
+
+        elements.trendSvg.innerHTML = `
+            <defs>
+                <linearGradient id="trendAreaGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="var(--primary)" stop-opacity=".28"></stop>
+                    <stop offset="100%" stop-color="var(--primary)" stop-opacity="0"></stop>
+                </linearGradient>
+            </defs>
+            ${gridLines}
+            <path class="chart-area" d="${areaPath}"></path>
+            <path class="chart-line" d="${path}" pathLength="900" style="stroke-dasharray:900;animation:chartReveal .9s var(--ease) both"></path>
+            ${labels}${pointElements}`;
+
+        const activityTotal = series.reduce((sum, item) => sum + item.value, 0);
+        setText('rangeActivityCount', toPersianDigits(activityTotal));
+        setText('rangeInsight', activityTotal ? `بیشترین فعالیت: ${toPersianDigits(Math.max(...series.map(item => item.value)))} پرونده` : 'در این بازه فعالیتی ثبت نشده است');
+
+        elements.trendSvg.querySelectorAll('.chart-point').forEach(point => {
+            const showTooltip = () => {
+                const item = points[Number(point.dataset.index)];
+                elements.chartTooltip.innerHTML = `<strong>${toPersianDigits(item.value)} فعالیت</strong><span>${escapeHtml(item.label)}</span>`;
+                elements.chartTooltip.style.left = `${item.x / width * 100}%`;
+                elements.chartTooltip.style.top = `${item.y / height * 100}%`;
+                elements.chartTooltip.classList.add('is-visible');
+            };
+            const hideTooltip = () => elements.chartTooltip.classList.remove('is-visible');
+            point.addEventListener('mouseenter', showTooltip);
+            point.addEventListener('focus', showTooltip);
+            point.addEventListener('click', showTooltip);
+            point.addEventListener('mouseleave', hideTooltip);
+            point.addEventListener('blur', hideTooltip);
+        });
+    }
+
+    function renderDonutChart() {
+        if (!elements.donutSvg) return;
+        const counts = getCounts();
+        const values = [
+            { status: 'under_treatment', value: counts.under, color: 'var(--primary)' },
+            { status: 'finished', value: counts.finished, color: 'var(--green)' },
+            { status: 'other', value: counts.other, color: 'var(--amber)' }
+        ];
+        const radius = 82;
+        const circumference = 2 * Math.PI * radius;
+        let offset = 0;
+        const gap = counts.total > 1 ? 4 : 0;
+        const segments = values.map(item => {
+            const length = counts.total ? (item.value / counts.total) * circumference : 0;
+            const segment = `<circle class="donut-segment" tabindex="0" role="button" data-status="${item.status}"
+                aria-label="${getStatusConfig(item.status).label || 'سایر'}: ${toPersianDigits(item.value)} پرونده"
+                cx="110" cy="110" r="${radius}" stroke="${item.color}"
+                stroke-dasharray="${Math.max(0, length - gap)} ${circumference}"
+                stroke-dashoffset="${-offset}"></circle>`;
+            offset += length;
+            return segment;
+        }).join('');
+        elements.donutSvg.innerHTML = `<circle class="donut-track" cx="110" cy="110" r="${radius}"></circle>${segments}`;
+        elements.donutSvg.querySelectorAll('.donut-segment').forEach(segment => {
+            segment.addEventListener('click', () => setStatusFilter(segment.dataset.status));
+            segment.addEventListener('keydown', event => {
+                if (event.key === 'Enter' || event.key === ' ') setStatusFilter(segment.dataset.status);
+            });
+        });
+        const rate = counts.total ? Math.round(counts.finished / counts.total * 100) : 0;
+        setText('gaugePercentageText', `${toPersianDigits(rate)}٪`);
+        setText('legendUnderCount', toPersianDigits(counts.under));
+        setText('legendFinishedCount', toPersianDigits(counts.finished));
+        setText('legendOtherCount', toPersianDigits(counts.other));
+    }
+
+    function renderCharts() {
+        renderTrendChart();
+        renderDonutChart();
+    }
+
+    function updateMetrics() {
+        const counts = getCounts();
+        setText('totalPatientsCount', toPersianDigits(counts.total));
+        setText('underTreatmentCount', toPersianDigits(counts.under));
+        setText('finishedTreatmentCount', toPersianDigits(counts.finished));
+        setText('otherTreatmentCount', toPersianDigits(counts.other));
+        setText('sidebarPatientCount', toPersianDigits(counts.total));
+    }
+
+    async function loadDashboardData() {
+        if (!window.DB) {
+            elements.cardsGrid.innerHTML = '<div class="error-state"><i class="fas fa-triangle-exclamation"></i><strong>اتصال پایگاه داده در دسترس نیست</strong><span>صفحه را دوباره بارگذاری کنید.</span></div>';
+            return;
+        }
+        try {
+            state.patients = await window.DB.getAllPatients();
+            state.patients.sort((first, second) => new Date(second.updated_at || second.created_at || 0) - new Date(first.updated_at || first.created_at || 0));
+            state.loaded = true;
+            updateMetrics();
+            renderCharts();
+            renderPatients();
+            setText('lastSyncLabel', `آخرین همگام‌سازی: ${new Intl.DateTimeFormat('fa-IR', { hour: '2-digit', minute: '2-digit' }).format(new Date())}`);
+        } catch (error) {
+            console.error(error);
+            elements.cardsGrid.innerHTML = '<div class="error-state"><i class="fas fa-wifi"></i><strong>دریافت اطلاعات با مشکل مواجه شد</strong><span>اتصال شبکه را بررسی و صفحه را دوباره بارگذاری کنید.</span></div>';
+        }
+    }
+
+    function openSidebar() {
+        elements.body.classList.add('sidebar-open');
+        document.getElementById('mobileMenuBtn')?.setAttribute('aria-expanded', 'true');
+    }
+
+    function closeSidebar() {
+        elements.body.classList.remove('sidebar-open');
+        document.getElementById('mobileMenuBtn')?.setAttribute('aria-expanded', 'false');
+    }
+
+    function focusSearch() {
+        closeSidebar();
+        document.getElementById('patientsSection')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        window.setTimeout(() => elements.searchInput?.focus(), 350);
+    }
+
+    function setView(view) {
+        state.view = view;
+        localStorage.setItem('dashboardView', view);
+        const gridButton = document.getElementById('gridViewBtn');
+        const listButton = document.getElementById('listViewBtn');
+        gridButton?.classList.toggle('is-selected', view === 'grid');
+        listButton?.classList.toggle('is-selected', view === 'list');
+        gridButton?.setAttribute('aria-pressed', String(view === 'grid'));
+        listButton?.setAttribute('aria-pressed', String(view === 'list'));
+        elements.cardsGrid?.classList.toggle('is-list', view === 'list');
+        if (state.loaded) renderPatients();
+    }
+
+    const currentUserPhone = localStorage.getItem('userPhone') || '';
+    const adminManagementButton = document.getElementById('adminUserManagementRow');
+    if (currentUserPhone === '09337593737') adminManagementButton?.classList.remove('hidden');
+
+    function showToast(message) {
+        if (window.showToast) window.showToast(message);
+        else window.alert(message);
+    }
+
+    async function loadUsersList() {
+        if (!elements.usersTableBody || !window.DB) return;
+        elements.usersTableBody.innerHTML = '<tr><td colspan="3">در حال دریافت اطلاعات...</td></tr>';
+        const users = await window.DB.getUsers();
+        if (!users.length) {
+            elements.usersTableBody.innerHTML = '<tr><td colspan="3">همکاری در سامانه ثبت نشده است.</td></tr>';
+            return;
+        }
+        elements.usersTableBody.innerHTML = users.map(user => {
+            const protectedUser = user.phone === '09337593737' || user.phone === currentUserPhone;
+            return `<tr>
+                <td>${escapeHtml(user.phone)}</td>
+                <td><span class="user-role-pill">${user.role === 'admin' ? 'مدیر' : 'همکار'}</span></td>
+                <td><button class="delete-user-btn" type="button" data-id="${escapeHtml(user.id)}" data-phone="${escapeHtml(user.phone)}" ${protectedUser ? 'disabled' : ''} aria-label="حذف کاربر"><i class="fas fa-trash"></i></button></td>
+            </tr>`;
+        }).join('');
+        elements.usersTableBody.querySelectorAll('.delete-user-btn:not(:disabled)').forEach(button => {
+            button.addEventListener('click', async () => {
+                if (!window.confirm(`همکار با شماره ${button.dataset.phone} حذف شود؟`)) return;
+                const result = await window.DB.deleteUser(button.dataset.id);
+                showToast(result.success ? 'همکار با موفقیت حذف شد.' : result.message);
+                if (result.success) loadUsersList();
+            });
+        });
+    }
+
+    let modalReturnFocus = null;
+
+    function openUserModal() {
+        modalReturnFocus = document.activeElement;
+        elements.userModal?.classList.add('is-open');
+        elements.userModal?.setAttribute('aria-hidden', 'false');
+        elements.body.classList.add('modal-open');
+        elements.settingsDropdown?.classList.remove('is-open');
+        loadUsersList();
+        window.setTimeout(() => document.getElementById('newUserPhone')?.focus(), 200);
+    }
+
     function closeUserModal() {
-        if (userManagementModal && userManagementModalCard) {
-            userManagementModal.classList.add('opacity-0', 'pointer-events-none');
-            userManagementModalCard.classList.remove('scale-100');
-            userManagementModalCard.classList.add('scale-95');
-        }
+        elements.userModal?.classList.remove('is-open');
+        elements.userModal?.setAttribute('aria-hidden', 'true');
+        elements.body.classList.remove('modal-open');
+        if (modalReturnFocus instanceof HTMLElement) modalReturnFocus.focus({ preventScroll: true });
+        modalReturnFocus = null;
     }
 
-    closeUserModalBtn?.addEventListener('click', closeUserModal);
-    
-    // بستن مودال با کلیک روی بک‌گراند خاکستری
-    userManagementModal?.addEventListener('click', (e) => {
-        if (e.target === userManagementModal) {
-            closeUserModal();
-        }
-    });
-
-    // سابمیت فرم تعریف همکار جدید
-    newUserForm?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        
-        // محافظت امنیتی کلاینت-ساید
-        if (currentUserPhone !== '09337593737') {
-            showLocalToast('شما دسترسی مجاز برای انجام این عملیات را ندارید.');
-            return;
-        }
-
-        const phoneEl = document.getElementById('newUserPhone');
-        const passEl = document.getElementById('newUserPass');
-        const roleEl = document.getElementById('newUserRole');
-
-        if (!phoneEl || !passEl || !roleEl || !window.DB) return;
-
-        const phone = phoneEl.value.trim();
-        const password = passEl.value;
-        const role = roleEl.value;
-
-        // بررسی فرمت شماره تلفن اجمالی
-        if (!/^\d{11}$/.test(phone)) {
-            showLocalToast('لطفا یک شماره تلفن معتبر ۱۱ رقمی وارد نمایید.');
-            return;
-        }
-
-        const result = await window.DB.createUser(phone, password, role, currentUserPhone);
+    document.getElementById('newUserForm')?.addEventListener('submit', async event => {
+        event.preventDefault();
+        if (currentUserPhone !== '09337593737') return showToast('دسترسی انجام این عملیات را ندارید.');
+        const phoneInput = document.getElementById('newUserPhone');
+        const passwordInput = document.getElementById('newUserPass');
+        const roleInput = document.getElementById('newUserRole');
+        const phone = toEnglishDigits(phoneInput.value.trim());
+        if (!/^\d{11}$/.test(phone)) return showToast('شماره تماس باید ۱۱ رقم باشد.');
+        if (passwordInput.value.length < 8) return showToast('رمز عبور باید حداقل ۸ کاراکتر باشد.');
+        const result = await window.DB.createUser(phone, passwordInput.value, roleInput.value, currentUserPhone);
+        showToast(result.success ? 'همکار جدید با موفقیت اضافه شد.' : result.message);
         if (result.success) {
-            showLocalToast(`همکار جدید با دسترسی ${role === 'admin' ? 'مدیر' : 'همکار'} با موفقیت تعریف شد.`);
-            phoneEl.value = '';
-            passEl.value = '';
-            roleEl.value = 'staff';
+            event.target.reset();
             loadUsersList();
-        } else {
-            showLocalToast(result.message);
         }
     });
 
-    // مدیریت باز و بسته شدن منوی تنظیمات شیشه‌ای در بالا-چپ
+    const savedTheme = localStorage.getItem('dashboardTheme');
+    const preferredTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    applyTheme(savedTheme || preferredTheme);
+    updateTodayLabel();
+    setView(state.view);
 
-    // مدیریت باز و بسته شدن منوی تنظیمات شیشه‌ای در بالا-چپ
-    const settingsMenuBtn = document.getElementById('settingsMenuBtn');
-    const settingsDropdown = document.getElementById('settingsDropdown');
-    const settingsContainer = document.getElementById('settingsContainer');
-    const settingsCogIcon = document.getElementById('settingsCogIcon');
+    ['themeToggleBtn', 'sidebarThemeBtn', 'desktopThemeBtn', 'mobileThemeBtn'].forEach(id => {
+        document.getElementById(id)?.addEventListener('click', toggleTheme);
+    });
+    ['topSearchBtn', 'sidebarSearchBtn', 'mobileSearchBtn'].forEach(id => {
+        document.getElementById(id)?.addEventListener('click', focusSearch);
+    });
+    document.getElementById('mobileMenuBtn')?.addEventListener('click', openSidebar);
+    document.getElementById('sidebarCloseBtn')?.addEventListener('click', closeSidebar);
+    document.getElementById('mobileOverlay')?.addEventListener('click', closeSidebar);
+    document.querySelectorAll('.sidebar a').forEach(link => link.addEventListener('click', closeSidebar));
+    document.getElementById('gridViewBtn')?.addEventListener('click', () => setView('grid'));
+    document.getElementById('listViewBtn')?.addEventListener('click', () => setView('list'));
+    document.getElementById('resetStatusFilter')?.addEventListener('click', () => setStatusFilter('all'));
+    adminManagementButton?.addEventListener('click', openUserModal);
+    document.getElementById('closeUserModalBtn')?.addEventListener('click', closeUserModal);
+    elements.userModal?.addEventListener('click', event => {
+        if (event.target === elements.userModal) closeUserModal();
+    });
 
-    if (settingsMenuBtn && settingsDropdown) {
-        settingsMenuBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const isExpanded = settingsMenuBtn.getAttribute('aria-expanded') === 'true';
-            settingsMenuBtn.setAttribute('aria-expanded', !isExpanded);
-            if (!isExpanded) {
-                settingsDropdown.classList.remove('opacity-0', 'scale-95', 'pointer-events-none');
-                settingsDropdown.classList.add('opacity-100', 'scale-100');
-                
-            } else {
-                settingsDropdown.classList.add('opacity-0', 'scale-95', 'pointer-events-none');
-                settingsDropdown.classList.remove('opacity-100', 'scale-100');
-                
-            }
-        });
-
-        // بستن منو در صورت کلیک در خارج از کادر آن
-        document.addEventListener('click', (e) => {
-            if (settingsContainer && !settingsContainer.contains(e.target)) {
-                settingsMenuBtn.setAttribute('aria-expanded', 'false');
-                settingsDropdown.classList.add('opacity-0', 'scale-95', 'pointer-events-none');
-                settingsDropdown.classList.remove('opacity-100', 'scale-100');
-                
-            }
-        });
-    }
-
-    // اتصالات رویدادها و میانبرهای کیبورد حرفه‌ای
-    document.addEventListener('keydown', (e) => {
-        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-            e.preventDefault();
-            document.getElementById('dashboardSearchInput')?.focus();
+    elements.settingsMenuBtn?.addEventListener('click', event => {
+        event.stopPropagation();
+        const isOpen = elements.settingsDropdown.classList.toggle('is-open');
+        elements.settingsMenuBtn.setAttribute('aria-expanded', String(isOpen));
+    });
+    document.addEventListener('click', event => {
+        if (!elements.settingsDropdown?.contains(event.target) && !elements.settingsMenuBtn?.contains(event.target)) {
+            elements.settingsDropdown?.classList.remove('is-open');
+            elements.settingsMenuBtn?.setAttribute('aria-expanded', 'false');
         }
     });
 
-    document.getElementById('dashboardSearchInput')?.addEventListener('input', filterAndRender);
-    document.getElementById('statusFilter')?.addEventListener('change', filterAndRender);
+    elements.searchInput?.addEventListener('input', event => {
+        state.query = event.target.value;
+        schedulePatientRender();
+    });
+    elements.statusFilter?.addEventListener('change', event => setStatusFilter(event.target.value));
+    document.querySelectorAll('#statusFilterChips button, #statusLegend button').forEach(button => {
+        button.addEventListener('click', () => setStatusFilter(button.dataset.status));
+    });
+    document.querySelectorAll('#trendRangeControl button').forEach(button => {
+        button.addEventListener('click', () => {
+            state.range = Number(button.dataset.range);
+            document.querySelectorAll('#trendRangeControl button').forEach(item => {
+                const isSelected = item === button;
+                item.classList.toggle('is-selected', isSelected);
+                item.setAttribute('aria-pressed', String(isSelected));
+            });
+            renderTrendChart();
+        });
+    });
+    document.addEventListener('keydown', event => {
+        if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+            event.preventDefault();
+            focusSearch();
+        }
+        if (event.key === 'Escape') {
+            closeSidebar();
+            closeUserModal();
+            elements.settingsDropdown?.classList.remove('is-open');
+            elements.settingsMenuBtn?.setAttribute('aria-expanded', 'false');
+        }
+    });
     document.getElementById('logoutBtn')?.addEventListener('click', () => {
-        if (window.Auth) {
-            window.Auth.logout();
-        } else {
+        if (window.Auth) window.Auth.logout();
+        else {
             localStorage.removeItem('adminLoggedIn');
             window.location.href = 'index.html';
         }
     });
 
-    // بارگذاری نهایی داده‌ها
     await loadDashboardData();
 });

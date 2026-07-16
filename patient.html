@@ -2,7 +2,8 @@
 <html lang="fa" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#f5f7fb">
     <title>پرونده بیمار</title>
     <!-- پایش امنیت نشست بیمار با اسکریپت جدا شده -->
     <script src="js/auth.js"></script>
@@ -13,22 +14,23 @@
             window.location.href = 'index.html';
         }
     </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="js/tailwind.config.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="css/styles.css">
 </head>
-<body class="font-vazir min-h-screen antialiased">
+<body>
 
-    <div class="profile-header-wrapper mx-auto w-full">
-        <div class="cover-zone relative w-full overflow-hidden" id="coverZone" tabindex="0" role="button" aria-label="آپلود تصویر کاور">
+    <div class="profile-header-wrapper">
+        <div class="cover-zone" id="coverZone" tabindex="0" role="button" aria-label="آپلود تصویر کاور">
             <div class="cover-overlay"><i class="fas fa-camera"></i><span>تغییر تصویر کاور</span></div>
             <button class="cover-remove-btn" id="coverRemoveBtn" type="button" title="حذف کاور"><i class="fas fa-times"></i></button>
             <input type="file" id="coverInput" accept="image/*">
         </div>
-        <div class="profile-header-bottom flex items-center">
+        <div class="profile-header-bottom">
             <div class="profile-pic-zone" id="profilePicZone" tabindex="0" role="button" aria-label="آپلود عکس پروفایل">
                 <div class="profile-pic-inner"><i class="fas fa-user"></i><span>profile</span></div>
                 <div class="profile-pic-overlay"><i class="fas fa-camera"></i></div>
@@ -55,10 +57,10 @@
         </div>
     </div>
 
-    <main class="container mx-auto">
+    <main class="container">
 
         <!-- بخش وضعیت بیمار (Patient Status) -->
-        <section class="card rounded-ui border shadow-card transition-colors" data-section-key="patient-status" id="patientStatusCard">
+        <section class="card" data-section-key="patient-status" id="patientStatusCard">
             <div class="card-title"><i class="fas fa-heartbeat"></i>وضعیت بیمار</div>
             <div class="status-box-layout">
                 <div class="status-select-wrapper">
@@ -75,101 +77,99 @@
             </div>
         </section>
 
-        <section class="card rounded-ui border shadow-card transition-colors" data-section-key="patient-info" data-print-section="patient-info">
+        <section class="card" data-section-key="patient-info" data-print-section="patient-info">
             <div class="card-title"><i class="fas fa-user"></i>مشخصات بیمار</div>
             <div class="patient-details-grid" id="patientDetailsFields">
-                <div class="field-group"><label for="patientName">نام و نام خانوادگی</label><input type="text" id="patientName" placeholder="نام و نام خانوادگی بیمار"></div>
-                <div class="field-group"><label for="fileNumber">شماره پرونده</label><input type="text" id="fileNumber" placeholder="شماره پرونده را وارد کنید"></div>
+                <div class="field-group"><label for="firstName">نام</label><input type="text" id="firstName" placeholder="نام بیمار" autocomplete="given-name"></div>
+                <div class="field-group"><label for="lastName">نام خانوادگی</label><input type="text" id="lastName" placeholder="نام خانوادگی بیمار" autocomplete="family-name"></div>
+                <input type="hidden" id="patientName" value="">
+                <div class="field-group file-number-field">
+                    <label for="fileNumber">شماره پرونده</label>
+                    <div class="file-number-control">
+                        <input type="text" id="fileNumber" placeholder="شماره پرونده را وارد کنید" inputmode="numeric" autocomplete="off" aria-describedby="fileSearchFeedback">
+                        <button class="file-search-button" id="fileSearchButton" type="button" aria-label="جستجوی پرونده" aria-busy="false">
+                            <i class="fas fa-magnifying-glass" aria-hidden="true"></i>
+                            <span class="file-search-button-label">جستجو</span>
+                            <span class="file-search-spinner" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                    <span class="file-search-feedback" id="fileSearchFeedback" aria-live="polite">شماره پرونده را وارد کرده و جستجو را بزنید.</span>
+                </div>
             </div>
             <div class="images-section mt-5" id="patientImages">
                 <div class="image-upload-card"><div class="image-upload-card-header"><i class="fas fa-upload"></i>آپلود تصویر اطلاعات بیمار</div><label class="upload-rect" tabindex="0" role="button" aria-label="آپلود تصویر اطلاعات بیمار"><i class="fas fa-cloud-upload-alt"></i><span>Person info</span><input type="file" accept="image/*"></label></div>
                 <div class="image-upload-card"><div class="image-upload-card-header"><i class="fas fa-upload"></i>آپلود تصویر کاور</div><label class="upload-rect" tabindex="0" role="button" aria-label="آپلود تصویر کاور"><i class="fas fa-image"></i><span>cover</span><input type="file" accept="image/*"></label></div>
             </div>
-            <button class="add-row-btn" id="addPatientImgBtn" type="button"><i class="fas fa-plus"></i>اضافه کردن تصویر جدید+</button>
         </section>
 
-        <section class="card rounded-ui border shadow-card transition-colors" data-section-key="doctor-treatment" data-print-section="doctor-treatment">
+        <section class="card" data-section-key="doctor-treatment" data-print-section="doctor-treatment">
             <div class="card-title"><i class="fas fa-tooth"></i>توضیحات دکتر و طرح درمان</div>
             <div class="images-section mb-5" id="doctorImages">
                 <div class="image-upload-card"><div class="image-upload-card-header"><i class="fas fa-upload"></i>آپلود تصویر توضیحات دکتر</div><label class="upload-rect" tabindex="0" role="button" aria-label="آپلود تصویر توضیحات دکتر"><i class="fas fa-cloud-upload-alt"></i><span>آپلود تصویر</span><input type="file" accept="image/*"></label></div>
             </div>
-            <div class="section-actions">
-                <button class="add-row-btn" id="addDoctorImgBtn" type="button"><i class="fas fa-plus"></i>اضافه کردن تصویر جدید+</button>
-                <button class="add-row-btn add-note-btn" id="addTreatmentNoteBtn" type="button"><i class="fas fa-pen"></i>اضافه کردن توضیحات</button>
-            </div>
             <div class="treatment-notes" id="treatmentNotes"></div>
         </section>
 
-        <section class="card rounded-ui border shadow-card transition-colors" data-section-key="initial-images" data-print-section="initial-images">
+        <section class="card" data-section-key="initial-images" data-print-section="initial-images">
             <div class="card-title"><i class="fas fa-camera-retro"></i>تصاویر اولیه بیمار</div>
             <div class="images-section" id="initialImages">
                 <div class="image-upload-card"><div class="image-upload-card-header"><i class="fas fa-upload"></i>آپلود تصویر اولیه</div><label class="upload-rect" tabindex="0" role="button" aria-label="آپلود تصویر اولیه بیمار"><i class="fas fa-cloud-upload-alt"></i><span>preimage</span><input type="file" accept="image/*"></label></div>
             </div>
-            <button class="add-row-btn" id="addInitialImgBtn" type="button"><i class="fas fa-plus"></i>اضافه کردن تصویر جدید+</button>
         </section>
 
-        <section class="card rounded-ui border shadow-card transition-colors" data-section-key="during-images" data-print-section="during-images">
+        <section class="card" data-section-key="during-images" data-print-section="during-images">
             <div class="card-title"><i class="fas fa-x-ray"></i>تصاویر حین درمان</div>
             <div class="images-section" id="duringImages">
                 <div class="image-upload-card"><div class="image-upload-card-header"><i class="fas fa-upload"></i>آپلود تصویر حین درمان</div><label class="upload-rect" tabindex="0" role="button" aria-label="آپلود تصویر حین درمان"><i class="fas fa-cloud-upload-alt"></i><span>آپلود تصویر</span><input type="file" accept="image/*"></label></div>
             </div>
-            <div class="section-actions">
-                <button class="add-row-btn" id="addDuringImgBtn" type="button"><i class="fas fa-plus"></i>اضافه کردن تصویر جدید+</button>
-                <button class="add-row-btn add-note-btn" id="addDuringNoteBtn" type="button"><i class="fas fa-pen"></i>اضافه کردن توضیحات</button>
-            </div>
             <div class="treatment-notes" id="duringNotes"></div>
         </section>
 
-        <section class="card rounded-ui border shadow-card transition-colors" data-section-key="file-image" data-print-section="file-image">
+        <section class="card" data-section-key="file-image" data-print-section="file-image">
             <div class="card-title"><i class="fas fa-folder-open"></i>تصویر پرونده</div>
             <div class="images-section" id="fileImages">
                 <div class="image-upload-card"><div class="image-upload-card-header"><i class="fas fa-upload"></i>آپلود تصویر پرونده</div><label class="upload-rect" tabindex="0" role="button" aria-label="آپلود تصویر پرونده"><i class="fas fa-cloud-upload-alt"></i><span>preimage</span><input type="file" accept="image/*"></label></div>
             </div>
-            <button class="add-row-btn" id="addFileImgBtn" type="button"><i class="fas fa-plus"></i>اضافه کردن تصویر جدید+</button>
         </section>
 
-        <section class="card rounded-ui border shadow-card transition-colors" data-section-key="extract-images" data-print-section="extract-images">
+        <section class="card" data-section-key="extract-images" data-print-section="extract-images">
             <div class="card-title"><i class="fas fa-hand-holding-medical"></i>تصاویر برداشت</div>
             <div class="images-section" id="extractImages">
                 <div class="image-upload-card"><div class="image-upload-card-header"><i class="fas fa-upload"></i>آپلود تصویر برداشت</div><label class="upload-rect" tabindex="0" role="button" aria-label="آپلود تصویر برداشت"><i class="fas fa-cloud-upload-alt"></i><span>preimage</span><input type="file" accept="image/*"></label></div>
             </div>
-            <div class="section-actions">
-                <button class="add-row-btn" id="addExtractImgBtn" type="button"><i class="fas fa-plus"></i>اضافه کردن تصویر جدید+</button>
-                <button class="add-row-btn add-note-btn" id="addExtractNoteBtn" type="button"><i class="fas fa-pen"></i>اضافه کردن توضیحات</button>
-            </div>
             <div class="treatment-notes" id="extractNotes"></div>
         </section>
 
-        <section class="card rounded-ui border shadow-card transition-colors" data-section-key="result" data-print-section="result">
+        <section class="card" data-section-key="result" data-print-section="result">
             <div class="card-title"><i class="fas fa-clipboard-check"></i>نتیجه درمان</div>
             <div class="result-grid" id="resultGrid"></div>
         </section>
     </main>
 
-    <nav class="top-action-bar fixed flex items-start" aria-label="منوی عملیات">
-        <div class="nav-dropdown-wrapper relative">
-            <button class="nav-main-btn inline-flex items-center justify-center" id="dropdownToggle" type="button" aria-label="باز کردن منوی عملیات" title="منوی عملیات">
+    <nav class="top-action-bar" aria-label="منوی عملیات">
+        <div class="nav-dropdown-wrapper">
+            <button class="nav-main-btn" id="dropdownToggle" type="button" aria-label="باز کردن منوی عملیات" title="منوی عملیات" aria-expanded="false" aria-controls="dropdownMenu">
                 <span class="hamburger-icon" aria-hidden="true"><span></span><span></span><span></span></span>
             </button>
-            <div class="nav-dropdown-menu absolute" id="dropdownMenu">
-                <a href="dashboard.html" class="dropdown-item flex items-center gap-2" style="text-decoration: none;"><i class="fas fa-chart-pie text-blue-600"></i> داشبورد کلینیک</a>
-                <button class="dropdown-item flex items-center gap-2" id="searchBtn" type="button"><i class="fas fa-search"></i> جستجو</button>
-                <button class="dropdown-item flex items-center gap-2" id="saveNowBtn" type="button"><i class="fas fa-save"></i> ذخیره</button>
-                <button class="dropdown-item flex items-center gap-2" id="addCustomSectionBtn" type="button"><i class="fas fa-square-plus"></i> اضافه کردن کادر جدید</button>
+            <div class="nav-dropdown-menu" id="dropdownMenu">
+                <a href="dashboard.html" class="dropdown-item"><i class="fas fa-chart-pie"></i> داشبورد کلینیک</a>
+                <button class="dropdown-item" id="searchBtn" type="button"><i class="fas fa-search"></i> جستجو</button>
+                <button class="dropdown-item" id="saveNowBtn" type="button"><i class="fas fa-save"></i> ذخیره</button>
+                <button class="dropdown-item" id="addCustomSectionBtn" type="button"><i class="fas fa-square-plus"></i> اضافه کردن کادر جدید</button>
                 <div class="dropdown-divider"></div>
-                <button class="dropdown-item flex items-center gap-2" id="printBtn" type="button"><i class="fas fa-print"></i> چاپ</button>
-                <button class="dropdown-item flex items-center gap-2" id="printSettingsToggle" type="button"><i class="fas fa-file-pdf"></i> تنظیمات چاپ</button>
-                <button class="dropdown-item flex items-center gap-2" id="imageSettingsToggle" type="button"><i class="fas fa-border-style"></i> تنظیمات کادر تصاویر</button>
-                <button class="dropdown-item flex items-center gap-2" id="themeSettingsToggle" type="button"><i class="fas fa-palette"></i> تنظیمات رنگ و تم</button>
+                <button class="dropdown-item" id="printBtn" type="button"><i class="fas fa-print"></i> چاپ</button>
+                <button class="dropdown-item" id="printSettingsToggle" type="button"><i class="fas fa-file-pdf"></i> تنظیمات چاپ</button>
+                <button class="dropdown-item" id="imageSettingsToggle" type="button"><i class="fas fa-border-style"></i> تنظیمات کادر تصاویر</button>
+                <button class="dropdown-item" id="themeSettingsToggle" type="button"><i class="fas fa-palette"></i> تنظیمات رنگ و تم</button>
                 <div class="dropdown-divider"></div>
                 <!-- دکمه حذف پرونده بیمار (بالای دکمه خروج) -->
-                <button class="dropdown-item flex items-center gap-2 text-red-500 hover:bg-red-50" id="deletePatientBtn" type="button"><i class="fas fa-trash-alt"></i> حذف کامل پرونده</button>
+                <button class="dropdown-item danger-item" id="deletePatientBtn" type="button"><i class="fas fa-trash-alt"></i> حذف کامل پرونده</button>
                 <div class="dropdown-divider"></div>
-                <button class="dropdown-item flex items-center gap-2 text-red-500 hover:bg-red-50" id="logoutBtn" type="button"><i class="fas fa-sign-out-alt"></i> خروج از حساب</button>
+                <button class="dropdown-item danger-item" id="logoutBtn" type="button"><i class="fas fa-sign-out-alt"></i> خروج از حساب</button>
             </div>
         </div>
     </nav>
-    <div class="nav-status fixed flex items-center" role="status" aria-live="polite"><div class="status-dot"></div><span>آماده</span></div>
+    <div class="nav-status" role="status" aria-live="polite"><div class="status-dot"></div><span>آماده</span></div>
 
     <div class="modal-overlay" id="customModal">
         <div class="modal-box">
@@ -275,12 +275,12 @@
             </div>
         </div>
         <div class="setting-row"><label>پالت آماده</label><select id="themePreset"><option value="clinicalBlue">Clinical Blue</option><option value="emeraldCare">Emerald Care</option><option value="graphite">Graphite</option><option value="roseQuartz">Rose Quartz</option><option value="amberFocus">Amber Focus</option><option value="tealBreeze">Teal Breeze (نعنایی)</option><option value="royalAmethyst">Royal Amethyst (بنفش)</option><option value="cosmeticGold">Cosmetic Gold (طلایی)</option><option value="darkObsidian">Dark Obsidian (تیره)</option><option value="custom">سفارشی</option></select></div>
-        <div class="setting-row"><label>رنگ اصلی</label><input type="color" id="accentColor" value="#2563eb"></div>
-        <div class="setting-row"><label>رنگ مکمل</label><input type="color" id="accentSoftColor" value="#3b82f6"></div>
-        <div class="setting-row"><label>رنگ پس‌زمینه</label><input type="color" id="bgColor" value="#f0f2f5"></div>
+        <div class="setting-row"><label>رنگ اصلی</label><input type="color" id="accentColor" value="#5b5bd6"></div>
+        <div class="setting-row"><label>رنگ مکمل</label><input type="color" id="accentSoftColor" value="#7c78ee"></div>
+        <div class="setting-row"><label>رنگ پس‌زمینه</label><input type="color" id="bgColor" value="#f5f7fb"></div>
         <div class="setting-row"><label>رنگ کارت‌ها</label><input type="color" id="cardColor" value="#ffffff"></div>
-        <div class="setting-row"><label>رنگ متن اصلی</label><input type="color" id="textColor" value="#111827"></div>
-        <div class="setting-row"><label>رنگ خط‌ها</label><input type="color" id="borderColor" value="#d1d5db"></div>
+        <div class="setting-row"><label>رنگ متن اصلی</label><input type="color" id="textColor" value="#162033"></div>
+        <div class="setting-row"><label>رنگ خط‌ها</label><input type="color" id="borderColor" value="#e1e5ec"></div>
         <div class="setting-row"><label>حالت سطح</label><select id="surfaceTheme"><option value="clean">تمیز</option><option value="soft">ملایم</option><option value="contrast">کنتراست بالا</option><option value="dark">تیره</option></select></div>
         <div class="setting-row"><label>گردی کارت‌ها</label><select id="uiRadius"><option value="6px">کم</option><option value="12px" selected>معمولی</option><option value="18px">زیاد</option></select></div>
         <div class="setting-row"><label>عمق سایه</label><select id="shadowLevel"><option value="flat">بدون سایه</option><option value="soft" selected>نرم</option><option value="deep">عمیق</option></select></div>

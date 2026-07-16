@@ -12,6 +12,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (loginForm) {
         loginForm.addEventListener('submit', handleLogin);
     }
+
+    const passwordToggle = document.getElementById('passwordToggle');
+    const passwordInput = document.getElementById('password');
+    passwordToggle?.addEventListener('click', () => {
+        const shouldShow = passwordInput.type === 'password';
+        passwordInput.type = shouldShow ? 'text' : 'password';
+        passwordToggle.setAttribute('aria-pressed', String(shouldShow));
+        passwordToggle.setAttribute('aria-label', shouldShow ? 'پنهان کردن کلمه عبور' : 'نمایش کلمه عبور');
+        passwordToggle.querySelector('i')?.classList.toggle('fa-eye', !shouldShow);
+        passwordToggle.querySelector('i')?.classList.toggle('fa-eye-slash', shouldShow);
+        passwordInput.focus({ preventScroll: true });
+    });
 });
 
 async function handleLogin(event) {
@@ -29,12 +41,22 @@ async function handleLogin(event) {
     const username = userEl.value.trim();
     const password = passEl.value;
 
-    // ریست خطاهای قبلی و فعال کردن انیمیشن دکمه
-    if (errorAlert) errorAlert.classList.add('hidden');
+    userEl.setAttribute('aria-invalid', 'false');
+    passEl.setAttribute('aria-invalid', 'false');
+    if (!username || !password) {
+        const emptyField = !username ? userEl : passEl;
+        emptyField.setAttribute('aria-invalid', 'true');
+        if (errorMessage) errorMessage.textContent = 'شماره تماس و کلمه عبور را کامل وارد کنید.';
+        if (errorAlert) errorAlert.hidden = false;
+        emptyField.focus();
+        return;
+    }
+
+    if (errorAlert) errorAlert.hidden = true;
     if (card) card.classList.remove('shake');
     if (submitBtn) submitBtn.disabled = true;
+    if (submitBtn) submitBtn.setAttribute('aria-busy', 'true');
     if (btnText) btnText.textContent = 'در حال بررسی هویت...';
-    if (btnSpinner) btnSpinner.style.display = 'block';
 
     try {
         if (!window.DB) {
@@ -50,10 +72,9 @@ async function handleLogin(event) {
             localStorage.setItem('userRole', result.user.role);
             
             if (btnText) btnText.textContent = 'احراز هویت موفق، خوش‌آمدید ✓';
-            if (btnSpinner) btnSpinner.style.display = 'none';
             if (submitBtn) {
-                submitBtn.classList.replace('btn-login-gradient', 'bg-emerald-600');
-                submitBtn.classList.add('bg-emerald-600');
+                submitBtn.classList.add('is-success');
+                submitBtn.setAttribute('aria-busy', 'false');
             }
             
             setTimeout(() => {
@@ -62,11 +83,13 @@ async function handleLogin(event) {
         } else {
             // ورود ناموفق
             if (errorMessage) errorMessage.textContent = result.message;
-            if (errorAlert) errorAlert.classList.remove('hidden');
+            if (errorAlert) errorAlert.hidden = false;
             if (card) card.classList.add('shake');
             if (submitBtn) submitBtn.disabled = false;
+            if (submitBtn) submitBtn.setAttribute('aria-busy', 'false');
             if (btnText) btnText.textContent = 'ورود به پنل مدیریت';
-            if (btnSpinner) btnSpinner.style.display = 'none';
+            userEl.setAttribute('aria-invalid', 'true');
+            passEl.setAttribute('aria-invalid', 'true');
             
             // فوکوس مجدد روی کلمه عبور
             if (passEl) {
@@ -77,10 +100,10 @@ async function handleLogin(event) {
     } catch (err) {
         console.error(err);
         if (errorMessage) errorMessage.textContent = err.message || 'خطای غیرمنتظره رخ داد.';
-        if (errorAlert) errorAlert.classList.remove('hidden');
+        if (errorAlert) errorAlert.hidden = false;
         if (card) card.classList.add('shake');
         if (submitBtn) submitBtn.disabled = false;
+        if (submitBtn) submitBtn.setAttribute('aria-busy', 'false');
         if (btnText) btnText.textContent = 'ورود به پنل مدیریت';
-        if (btnSpinner) btnSpinner.style.display = 'none';
     }
 }
