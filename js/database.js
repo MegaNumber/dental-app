@@ -408,15 +408,17 @@ const DB = {
     async deleteImage(imageUrl) {
         try {
             const urlParts = imageUrl.split(`${STORAGE_BUCKET}/`);
-            if (urlParts.length < 2) return;
+            if (urlParts.length < 2) return false;
             const filePath = decodeURIComponent(urlParts[1].split('?')[0]); 
             const client = await getConnectedSupabase();
             const { error } = await client.storage.from(STORAGE_BUCKET).remove([filePath]);
             if (error) throw error;
             this.lastError = null;
+            return true;
         } catch (err) {
             this.lastError = err;
             logDatabaseError('deleteImage', err);
+            return false;
         }
     },
 

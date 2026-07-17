@@ -1195,15 +1195,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function removeImageCard(card) {
         if (!card?.isConnected) return false;
-        const confirmed = await showModal('آیا این کادر تصویر حذف شود؟');
+        const confirmed = await showModal('آیا این کادر تصویر حذف شود؟', {
+            confirmText: 'بله، حذف شود',
+            danger: true
+        });
         if (!confirmed) return false;
         const rect = card.querySelector('.upload-rect');
         const dbUrl = rect?.getAttribute('data-db-url');
         if (dbUrl) {
-            try {
-                await DB.deleteImage(dbUrl);
-            } catch (error) {
-                console.error('Error deleting image asset:', error);
+            const deleted = await DB.deleteImage(dbUrl);
+            if (!deleted) {
+                showToast('حذف تصویر از سرور ناموفق بود');
+                return false;
             }
         }
         card.remove();
@@ -1617,7 +1620,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function removeSectionCard(sectionCard) {
         if (!sectionCard?.isConnected) return false;
-        const confirmed = await showModal('آیا این کادر حذف شود؟');
+        const confirmed = await showModal('آیا این کادر حذف شود؟', {
+            confirmText: 'بله، حذف شود',
+            danger: true
+        });
         if (!confirmed) return false;
         const imageUrls = Array.from(sectionCard.querySelectorAll('.upload-rect[data-db-url]'))
             .map(rect => rect.getAttribute('data-db-url'))
@@ -1883,6 +1889,34 @@ document.addEventListener('DOMContentLoaded', () => {
         fileInput.value = '';
     }
 
+    async function confirmAndRemoveUploadedImage(rect) {
+        if (!rect || rect.dataset.confirmingDelete === 'true') return false;
+        rect.dataset.confirmingDelete = 'true';
+        try {
+            const confirmed = await showModal('آیا از حذف این تصویر مطمئن هستید؟', {
+                confirmText: 'بله، حذف شود',
+                danger: true
+            });
+            if (!confirmed) return false;
+
+            const dbUrl = rect.getAttribute('data-db-url');
+            if (dbUrl) {
+                const deleted = await DB.deleteImage(dbUrl);
+                if (!deleted) {
+                    showToast('حذف تصویر از سرور ناموفق بود');
+                    return false;
+                }
+            }
+            resetEmptyUploadRect(rect);
+            syncSectionImageEditor();
+            Autosave.triggerSoon(rect);
+            showToast('تصویر حذف شد');
+            return true;
+        } finally {
+            delete rect.dataset.confirmingDelete;
+        }
+    }
+
     function bindAllRectUploads() {
         document.querySelectorAll('.upload-rect').forEach(rect => {
             const inp = rect.querySelector('input[type="file"]');
@@ -1890,16 +1924,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 inp._bound = true;
                 inp.addEventListener('change', () => handleImageUpload(inp, rect));
             }
-            if (inp && rect.tagName !== 'LABEL' && !rect._clickBound) {
+            if (inp && !rect._clickBound) {
                 rect._clickBound = true;
                 rect.addEventListener('click', (e) => {
                     if (e.target.closest('.remove-img-btn')) return;
-                    rect.querySelector('input[type="file"]')?.click();
+                    if (rect.classList.contains('has-image')) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        void confirmAndRemoveUploadedImage(rect);
+                        return;
+                    }
+                    if (rect.tagName !== 'LABEL') rect.querySelector('input[type="file"]')?.click();
                 });
                 rect.addEventListener('keydown', (e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault();
-                        rect.querySelector('input[type="file"]')?.click();
+                        if (rect.classList.contains('has-image')) {
+                            void confirmAndRemoveUploadedImage(rect);
+                        } else {
+                            rect.querySelector('input[type="file"]')?.click();
+                        }
                     }
                 });
             }
@@ -1981,20 +2025,32 @@ document.addEventListener('DOMContentLoaded', () => {
         coverInput.value = '';
     });
 
-    document.getElementById('coverRemoveBtn').addEventListener('click', (e) => {
+    document.getElementById('coverRemoveBtn').addEventListener('click', async (e) => {
+        e.preventDefault();
         e.stopPropagation();
-        const oldUrl = coverZone.getAttribute('data-db-url');
-        if(oldUrl) DB.deleteImage(oldUrl);
-        coverZone.removeAttribute('data-db-url');
-        coverZone.removeAttribute('data-image-url');
-        coverZone.removeAttribute('data-uploading');
-        coverZone.removeAttribute('data-width');
-        coverZone.removeAttribute('data-height');
-        coverZone.style.height = '';
-        coverZone.style.backgroundImage = '';
-        coverZone.classList.remove('has-cover');
-        Autosave.trigger();
-        showToast('تصویر کاور حذف شد');
+        if (coverZone.dataset.confirmingDelete === 'true') return;
+        coverZone.dataset.confirmingDelete = 'true';
+        try {
+            const confirmed = await showModal('آیا از حذف این تصویر مطمئن هستید؟', {
+                confirmText: 'بله، حذف شود',
+                danger: true
+            });
+            if (!confirmed) return;
+
+            const oldUrl = coverZone.getAttribute('data-db-url');
+            if (oldUrl) {
+                const deleted = await DB.deleteImage(oldUrl);
+                if (!deleted) {
+                    showToast('حذف تصویر کاور از سرور ناموفق بود');
+                    return;
+                }
+            }
+            resetCoverImage();
+            Autosave.trigger();
+            showToast('تصویر کاور حذف شد');
+        } finally {
+            delete coverZone.dataset.confirmingDelete;
+        }
     });
 
     // --- مدیریت پروفایل ---
@@ -2320,22 +2376,14 @@ document.addEventListener('DOMContentLoaded', () => {
     bindPatientDetails();
 
     // --- حذف عکس ---
-    document.addEventListener('click', (e) => {
-        if (e.target.closest('.remove-img-btn')) {
-            e.preventDefault(); e.stopPropagation();
-            const rect = e.target.closest('.upload-rect');
-            const dbUrl = rect.getAttribute('data-db-url');
-            if (dbUrl) DB.deleteImage(dbUrl);
-            rect.removeAttribute('data-db-url');
-            rect.removeAttribute('data-image-url');
-            rect.removeAttribute('data-uploading');
-            rect.style.height = ''; rect.style.minHeight = ''; rect.style.backgroundImage = '';
-            rect.classList.remove('has-image');
-            rect.innerHTML = `<i class="fas fa-cloud-upload-alt" style="display:block"></i><span style="display:block">آپلود تصویر</span><input type="file" accept="image/*">`;
-            bindAllRectUploads();
-            Autosave.triggerSoon(rect);
-            showToast('تصویر حذف شد');
-        }
+    document.addEventListener('click', async (e) => {
+        const removeButton = e.target.closest('.remove-img-btn');
+        if (!removeButton) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        const rect = removeButton.closest('.upload-rect');
+        await confirmAndRemoveUploadedImage(rect);
     });
 
     // --- منوی کشویی ---
@@ -2893,9 +2941,27 @@ document.addEventListener('DOMContentLoaded', () => {
     imageEditorPreviewLabel = document.getElementById('sectionImageEditorPreviewLabel');
     imageEditorSubtitle = document.getElementById('sectionImageEditorSubtitle');
     let modalResolve = null;
-    function showModal(message) { document.getElementById('modalMessage').textContent = message; modalOverlay.classList.add('show'); return new Promise((resolve) => { modalResolve = resolve; }); }
-    document.getElementById('modalConfirm').addEventListener('click', () => { modalOverlay.classList.remove('show'); if (modalResolve) modalResolve(true); });
-    document.getElementById('modalCancel').addEventListener('click', () => { modalOverlay.classList.remove('show'); if (modalResolve) modalResolve(false); });
+    function showModal(message, { confirmText = 'تایید', cancelText = 'انصراف', danger = false } = {}) {
+        const confirmButton = document.getElementById('modalConfirm');
+        const cancelButton = document.getElementById('modalCancel');
+        document.getElementById('modalMessage').textContent = message;
+        confirmButton.textContent = confirmText;
+        cancelButton.textContent = cancelText;
+        confirmButton.classList.toggle('danger', danger);
+        modalOverlay.dataset.variant = danger ? 'danger' : 'default';
+        modalOverlay.classList.add('show');
+        return new Promise((resolve) => {
+            modalResolve = resolve;
+        });
+    }
+    function resolveModal(result) {
+        modalOverlay.classList.remove('show');
+        const resolve = modalResolve;
+        modalResolve = null;
+        if (resolve) resolve(result);
+    }
+    document.getElementById('modalConfirm').addEventListener('click', () => resolveModal(true));
+    document.getElementById('modalCancel').addEventListener('click', () => resolveModal(false));
     imageEditorSelect?.addEventListener('change', syncSectionImageEditor);
     document.getElementById('sectionImageEditorCloseBtn')?.addEventListener('click', closeSectionImageEditor);
     imageEditorModal?.addEventListener('click', (e) => {
@@ -3041,7 +3107,9 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 Autosave.updateStatus('پرونده یافت نشد', '#ef4444');
                 setFileSearchState(true, `پرونده‌ای با شماره ${toPersianDigits(fileNumber)} یافت نشد.`);
-                const userWantsToCreate = await showModal(`شماره پرونده "${fileNumber}" موجود نمی‌باشد. ایجاد شود؟`);
+                const userWantsToCreate = await showModal(`شماره پرونده "${fileNumber}" موجود نمی‌باشد. ایجاد شود؟`, {
+                    confirmText: 'بله، ایجاد شود'
+                });
                 if (userWantsToCreate) {
                     const identity = {
                         name: patientNameInput.value,

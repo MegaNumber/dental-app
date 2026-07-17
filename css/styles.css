@@ -606,6 +606,9 @@
         .modal-btn{padding:9px 22px;border-radius:10px;font-family:'Vazirmatn',sans-serif;font-size:var(--text-sm);font-weight:600;cursor:pointer;border:none;transition:all .2s;}
         .modal-btn.confirm{background:var(--accent);color:white;box-shadow:0 2px 8px rgba(37,99,235,.2);}
         .modal-btn.confirm:hover{background:var(--accent-dark);}
+        .modal-btn.confirm.danger{background:var(--danger);box-shadow:0 2px 8px color-mix(in srgb,var(--danger) 24%,transparent);}
+        .modal-btn.confirm.danger:hover{background:color-mix(in srgb,var(--danger) 82%,#991b1b 18%);}
+        .modal-overlay[data-variant="danger"] .modal-icon{background:color-mix(in srgb,var(--danger) 13%,#fff);color:var(--danger);}
         .modal-btn.cancel{background:#f3f4f6;color:var(--text-secondary);}
         .modal-btn.cancel:hover{background:#e5e7eb;color:var(--text-primary);}
         .image-editor-modal-box{background:var(--card);border-radius:16px;padding:22px;max-width:540px;width:min(92vw,540px);box-shadow:0 24px 70px rgba(0,0,0,.22);transform:scale(.94);transition:transform .3s cubic-bezier(.16,1,.3,1);}
