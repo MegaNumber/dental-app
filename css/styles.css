@@ -187,6 +187,7 @@
         .field-group{display:flex;flex-direction:column;gap:6px;}
         .field-group label{font-size:var(--text-sm);font-weight:600;color:var(--text-secondary);letter-spacing: 0.01em;}
         .patient-details-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(300px,1.35fr);gap:16px;align-items:start;}
+        .patient-details-grid.patient-details-stack{grid-template-columns:minmax(0,1fr);}
         .patient-details-grid > .field-group,
         .patient-details-grid input{
             min-width:0;
@@ -195,6 +196,9 @@
         .patient-details-grid input{
             width:100%;
         }
+        .patient-details-stack .file-number-field{grid-column:auto;}
+        .patient-details-stack .numeric-input{direction:ltr;text-align:right;}
+        .patient-status-field .status-box-layout{width:100%;}
         .patient-detail-field{position:relative;animation:fadeUp .3s ease both;}
         .patient-detail-label-row{display:flex;align-items:center;gap:8px;}
         .patient-detail-label-row .result-field-label{flex:1;min-width:0;}
@@ -2058,7 +2062,7 @@
             top:9px;
             left:9px;
             z-index:32;
-            display:inline-flex!important;
+            display:none!important;
             width:30px;
             height:30px;
             min-width:30px;
@@ -2075,6 +2079,14 @@
             font:inherit;
             line-height:1;
             transition:background-color .18s ease,border-color .18s ease,color .18s ease,box-shadow .18s ease,transform .18s ease;
+        }
+
+        [data-user-created="true"] .component-delete-btn{
+            display:inline-flex!important;
+        }
+
+        .result-field-group:not([data-user-created="true"]) .result-field-remove-btn{
+            display:none!important;
         }
 
         .component-delete-btn i{
@@ -2178,5 +2190,374 @@
         @media print{
             .component-delete-btn{
                 display:none!important;
+            }
+        }
+
+        /* ==============================================================
+           PREMIUM VISUAL REFRESH — presentation-only overhaul
+           Scope: colors, typography, spacing, shadows, transitions,
+           iconography, light/dark contrast. No selectors were removed,
+           no display/layout/structural rules were altered, so behaviour
+           stays identical to the previous version.
+           ============================================================== */
+
+        :root{
+            /* Refined, healthcare-grade accent & status palette */
+            --success:#0f9d63;
+            --success-soft:#e8f9f1;
+            --warning:#c2760a;
+            --warning-soft:#fef6e7;
+            --error:#d64550;
+            --error-soft:#fdedee;
+            --danger:#e35361;
+
+            /* Motion */
+            --ease-premium:cubic-bezier(.22,1,.36,1);
+            --ease-soft:cubic-bezier(.4,0,.2,1);
+
+            /* Elevation tiers, independent of the accent-tinted shadow the
+               theme panel controls, used for a calmer, more premium lift */
+            --elevation-1:0 1px 2px rgba(15,23,42,.04),0 2px 8px rgba(15,23,42,.04);
+            --elevation-2:0 4px 14px rgba(15,23,42,.06),0 12px 28px rgba(15,23,42,.06);
+            --elevation-3:0 10px 26px rgba(15,23,42,.09),0 24px 56px rgba(15,23,42,.10);
+
+            --hairline:color-mix(in srgb,var(--border) 70%,transparent);
+        }
+
+        /* ---------- Typography ---------- */
+        body{
+            font-weight:400;
+            letter-spacing:-.005em;
+            -moz-osx-font-smoothing:grayscale;
+        }
+        .patient-name-display{
+            font-weight:800;
+            letter-spacing:-.02em;
+        }
+        .card-title{
+            font-weight:700;
+            letter-spacing:-.01em;
+        }
+        .card-title i{
+            font-size:.85rem;
+        }
+        .field-group label{
+            font-weight:600;
+            letter-spacing:.01em;
+            color:var(--text-secondary);
+        }
+        .settings-panel-header h3{
+            letter-spacing:-.01em;
+        }
+        .setting-row label{
+            font-weight:500;
+        }
+        .patient-file-display strong{
+            letter-spacing:-.01em;
+        }
+        .summary-display{
+            letter-spacing:0;
+        }
+
+        /* ---------- Global motion ---------- */
+        .card,
+        .image-upload-card,
+        .upload-rect,
+        .field-group input,.field-group select,.field-group textarea,
+        .treatment-table select,.treatment-table td input[type="text"],
+        .add-row-btn,.modal-btn,.dropdown-item,.file-search-button,
+        .nav-main-btn,.section-tools-btn,.image-card-menu-btn,
+        .toggle-slider,.toggle-slider::before,
+        .jalali-picker-day,.jalali-picker-nav,
+        .status-select-wrapper,.status-badge-display,
+        .drag-handle,.delete-section-btn,.component-delete-btn,
+        .settings-panel,.section-tools-menu,.image-card-menu,.jalali-picker-panel{
+            transition-timing-function:var(--ease-premium);
+        }
+
+        /* ---------- Header / cover ---------- */
+        .cover-zone{
+            box-shadow:var(--elevation-2);
+        }
+        .profile-header-bottom{
+            box-shadow:var(--elevation-1);
+        }
+        .profile-pic-zone{
+            box-shadow:0 6px 18px rgba(15,23,42,.14),0 0 0 1px color-mix(in srgb,var(--border) 60%,transparent);
+        }
+        .patient-file-display strong{
+            color:var(--accent-dark,var(--accent));
+        }
+
+        /* ---------- Cards ---------- */
+        .card{
+            box-shadow:var(--elevation-1);
+            transition:box-shadow .28s var(--ease-premium),border-color .28s var(--ease-premium),transform .28s var(--ease-premium);
+        }
+        .card:hover{
+            box-shadow:var(--elevation-2);
+        }
+        .card-title{
+            gap:12px;
+        }
+        .card-title i{
+            box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 14%,transparent);
+        }
+
+        /* ---------- Status box ---------- */
+        .status-box-layout{
+            box-shadow:var(--elevation-1);
+        }
+        .status-select-wrapper{
+            box-shadow:0 1px 2px rgba(15,23,42,.03);
+        }
+        .status-badge-display{
+            font-weight:700;
+            letter-spacing:.01em;
+            box-shadow:0 1px 2px rgba(15,23,42,.04);
+        }
+
+        /* ---------- Form fields ---------- */
+        .field-group input,.field-group select,.field-group textarea,
+        .result-field-input,.patient-detail-input,
+        .treatment-table select,.treatment-table td input[type="text"]{
+            font-weight:450;
+        }
+        .field-group input:focus,.field-group select:focus,.field-group textarea:focus,
+        .treatment-table select:focus,.treatment-table td input[type="text"]:focus{
+            box-shadow:var(--focus-ring,0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent));
+        }
+
+        /* ---------- Treatment table ---------- */
+        .treatment-table{
+            box-shadow:var(--elevation-1);
+        }
+        .treatment-table thead th{
+            background:linear-gradient(135deg,var(--accent),var(--accent-dark,var(--accent)));
+            font-weight:700;
+            letter-spacing:.02em;
+        }
+        .treatment-table tbody tr:hover td{
+            background:color-mix(in srgb,var(--accent-light,var(--accent)) 20%,var(--card) 80%);
+        }
+
+        /* ---------- Buttons ---------- */
+        .add-row-btn{
+            font-weight:600;
+            letter-spacing:.01em;
+        }
+        .add-note-btn{
+            background:color-mix(in srgb,var(--success-soft) 78%,var(--card) 22%);
+            border-color:color-mix(in srgb,var(--success) 40%,var(--border));
+            color:var(--success);
+        }
+        .add-note-btn:hover{
+            background:var(--success);
+            border-color:var(--success);
+            color:#fff;
+        }
+        .file-search-button{
+            font-weight:700;
+            letter-spacing:.01em;
+        }
+        .modal-btn{
+            font-weight:600;
+        }
+        .dropdown-item{
+            font-weight:500;
+        }
+        .dropdown-item.danger-item:hover{
+            background:color-mix(in srgb,var(--error-soft) 82%,var(--card) 18%);
+        }
+
+        /* ---------- Image cards ---------- */
+        .image-upload-card{
+            box-shadow:var(--elevation-1);
+        }
+        .image-upload-card:hover{
+            box-shadow:var(--elevation-2);
+        }
+        .image-upload-card-header{
+            font-weight:600;
+            letter-spacing:.01em;
+        }
+        .upload-rect i{
+            color:color-mix(in srgb,var(--text-tertiary) 100%,transparent);
+        }
+        .section-tool-item:hover{
+            background:color-mix(in srgb,var(--accent-light,var(--accent)) 55%,var(--card) 45%);
+        }
+        .image-card-menu-btn{
+            box-shadow:var(--elevation-1);
+        }
+        .image-card-menu{
+            box-shadow:var(--elevation-3);
+        }
+        .section-tools-menu{
+            box-shadow:var(--elevation-3);
+        }
+
+        /* ---------- Notes ---------- */
+        .treatment-note-box{
+            box-shadow:inset 3px 0 0 color-mix(in srgb,var(--accent) 40%,transparent),var(--elevation-1);
+        }
+        .treatment-note-box textarea{
+            font-weight:400;
+        }
+
+        /* ---------- Jalali date picker ---------- */
+        .jalali-picker-panel{
+            box-shadow:var(--elevation-3);
+        }
+        .jalali-picker-day.is-selected{
+            box-shadow:0 6px 16px color-mix(in srgb,var(--accent) 34%,transparent);
+        }
+        .jalali-picker-action.clear{
+            background:var(--muted-bg);
+            color:var(--text-secondary);
+        }
+        .jalali-picker-action.clear:hover{
+            background:var(--border);
+        }
+
+        /* ---------- Top action bar / nav ---------- */
+        .nav-main-btn{
+            box-shadow:var(--elevation-2);
+        }
+        .nav-dropdown-menu{
+            box-shadow:var(--elevation-3);
+        }
+        .nav-status{
+            font-weight:600;
+            box-shadow:var(--elevation-1);
+        }
+
+        /* ---------- Settings panels ---------- */
+        .settings-panel{
+            box-shadow:var(--elevation-3);
+        }
+        .settings-panel-header h3{
+            font-weight:700;
+        }
+        .setting-row label{
+            color:var(--text-primary);
+        }
+        .setting-value{
+            font-weight:700;
+        }
+        .theme-preview-card{
+            box-shadow:var(--elevation-1);
+        }
+
+        /* ---------- Modal / image editor ---------- */
+        .modal-box{
+            box-shadow:var(--elevation-3);
+        }
+        .image-editor-modal-box{
+            box-shadow:var(--elevation-3);
+        }
+        .image-editor-preview{
+            box-shadow:inset 0 0 0 1px var(--hairline);
+        }
+
+        /* ---------- Toast ---------- */
+        .toast{
+            font-weight:600;
+            letter-spacing:.01em;
+            box-shadow:var(--elevation-3);
+        }
+
+        /* ---------- Component delete control ---------- */
+        .component-delete-btn{
+            box-shadow:var(--elevation-1);
+        }
+
+        /* ---------- Scrollbars ---------- */
+        ::-webkit-scrollbar-thumb{
+            background:color-mix(in srgb,var(--text-tertiary) 55%,transparent);
+        }
+        .settings-panel::-webkit-scrollbar-track{
+            background:var(--muted-bg);
+        }
+        .settings-panel::-webkit-scrollbar-thumb{
+            background:color-mix(in srgb,var(--text-tertiary) 55%,transparent);
+        }
+
+        /* ==============================================================
+           Dark-surface contrast pass — extends the existing
+           html:has(#surfaceTheme option[value="dark"]:checked) pattern
+           already used in this file to the remaining light-only colors,
+           so every element stays readable when Dark is selected in the
+           theme panel. Nothing here changes light-mode appearance.
+           ============================================================== */
+        html:has(#surfaceTheme option[value="dark"]:checked) .jalali-picker-panel{
+            background:var(--card);
+            border-color:var(--border);
+            box-shadow:0 26px 60px rgba(0,0,0,.5);
+        }
+        html:has(#surfaceTheme option[value="dark"]:checked) .jalali-picker-select{
+            background:var(--field-bg);
+            color:var(--text-primary);
+            color-scheme:dark;
+        }
+        html:has(#surfaceTheme option[value="dark"]:checked) .jalali-picker-day{
+            color:var(--text-primary);
+        }
+        html:has(#surfaceTheme option[value="dark"]:checked) .jalali-picker-action.clear{
+            background:var(--muted-bg);
+            color:var(--text-secondary);
+        }
+        html:has(#surfaceTheme option[value="dark"]:checked) .image-editor-modal-box,
+        html:has(#surfaceTheme option[value="dark"]:checked) .modal-box{
+            background:var(--card);
+            border:1px solid var(--border);
+            box-shadow:0 26px 60px rgba(0,0,0,.5);
+        }
+        html:has(#surfaceTheme option[value="dark"]:checked) .image-editor-preview{
+            background:linear-gradient(180deg,color-mix(in srgb,var(--muted-bg) 88%,#000 12%) 0%,var(--muted-bg) 100%);
+            color:var(--text-secondary);
+        }
+        html:has(#surfaceTheme option[value="dark"]:checked) .settings-panel::-webkit-scrollbar-track{
+            background:var(--muted-bg);
+        }
+        html:has(#surfaceTheme option[value="dark"]:checked) .add-note-btn{
+            background:color-mix(in srgb,var(--success) 22%,var(--field-bg) 78%);
+            border-color:color-mix(in srgb,var(--success) 55%,var(--border));
+            color:#7be3b6;
+        }
+        html:has(#surfaceTheme option[value="dark"]:checked) .add-note-btn:hover{
+            background:var(--success);
+            color:#04140c;
+        }
+        html:has(#surfaceTheme option[value="dark"]:checked) .dropdown-item.danger-item:hover{
+            background:color-mix(in srgb,var(--danger) 22%,var(--field-bg) 78%);
+        }
+        html:has(#surfaceTheme option[value="dark"]:checked) .treatment-table tbody tr:hover td{
+            background:color-mix(in srgb,var(--accent) 16%,var(--card) 84%);
+        }
+        html:has(#surfaceTheme option[value="dark"]:checked) .remove-note-btn,
+        html:has(#surfaceTheme option[value="dark"]:checked) .patient-detail-remove-btn:hover,
+        html:has(#surfaceTheme option[value="dark"]:checked) .result-field-remove-btn:hover{
+            background:color-mix(in srgb,var(--danger) 28%,var(--field-bg) 72%);
+            color:#fda4af;
+        }
+        html:has(#surfaceTheme option[value="dark"]:checked) .toast{
+            background:color-mix(in srgb,var(--card) 88%,#000 12%);
+            border-color:var(--panel-border,var(--border));
+            color:var(--text-primary);
+        }
+        html:has(#surfaceTheme option[value="dark"]:checked) .upload-rect,
+        html:has(#surfaceTheme option[value="dark"]:checked) .image-upload-card{
+            background:color-mix(in srgb,var(--field-bg) 92%,#000 8%);
+        }
+        html:has(#surfaceTheme option[value="dark"]:checked) img{
+            filter:brightness(.94) contrast(1.02);
+        }
+
+        /* ---------- Reduced motion still respected ---------- */
+        @media(prefers-reduced-motion:reduce){
+            .card,.image-upload-card,.upload-rect,.settings-panel,
+            .section-tools-menu,.image-card-menu,.jalali-picker-panel{
+                transition:none!important;
             }
         }

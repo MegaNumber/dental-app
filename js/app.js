@@ -105,6 +105,15 @@ document.addEventListener('DOMContentLoaded', () => {
         return toEnglishDigits(String(value || '').trim());
     }
 
+    function normalizeMobileNumber(value) {
+        return toEnglishDigits(String(value || '')).replace(/\D/g, '').slice(0, 11);
+    }
+
+    function normalizeJalaliDateInput(value) {
+        const normalized = toEnglishDigits(String(value || '')).replace(/[.\-]/g, '/').replace(/[^\d/]/g, '').slice(0, 10);
+        return toPersianDigits(normalized);
+    }
+
     function getRequiredFileNumber() {
         const input = document.getElementById('fileNumber');
         const fileNumber = normalizeFileNumber(input.value);
@@ -473,8 +482,7 @@ document.addEventListener('DOMContentLoaded', () => {
             label,
             value: parsedDate ? formatJalaliDate(parsedDate) : rawValue,
             placeholder: String(field.placeholder ?? fallback?.placeholder ?? 'وارد کنید...'),
-            fieldType,
-            isDeletable: Boolean(field.allowDelete)
+            fieldType
         };
     }
 
@@ -489,7 +497,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (field.fieldType === 'jalali-date') {
             return `
-                <div class="field-group result-field-group" data-result-key="${escapeHtml(field.key)}" data-result-type="jalali-date" data-result-placeholder="${escapeHtml(field.placeholder)}">
+                <div class="field-group result-field-group" data-result-key="${escapeHtml(field.key)}" data-result-type="jalali-date" data-result-placeholder="${escapeHtml(field.placeholder)}"${showDelete ? ' data-user-created="true"' : ''}>
                     ${labelMarkup}
                     <div class="jalali-picker-shell">
                         <div class="result-input-shell">
@@ -504,7 +512,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         return `
-            <div class="field-group result-field-group" data-result-key="${escapeHtml(field.key)}" data-result-type="text" data-result-placeholder="${escapeHtml(field.placeholder)}">
+            <div class="field-group result-field-group" data-result-key="${escapeHtml(field.key)}" data-result-type="text" data-result-placeholder="${escapeHtml(field.placeholder)}"${showDelete ? ' data-user-created="true"' : ''}>
                 ${labelMarkup}
                 <input type="text" ${inputAttrs} autocomplete="off">
             </div>`;
@@ -515,7 +523,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!resultGrid) return;
         closeResultDatePicker();
         const list = (Array.isArray(fields) && fields.length ? fields : RESULT_DEFAULT_FIELDS).map(normalizeResultField);
-        resultGrid.innerHTML = list.map(buildResultFieldMarkup).join('');
+        resultGrid.innerHTML = list.map(field => buildResultFieldMarkup(field, false)).join('');
+        resultGrid.querySelectorAll('.result-field-remove-btn').forEach(button => button.remove());
+        resultGrid.querySelectorAll('.result-field-group[data-user-created]').forEach(fieldGroup => {
+            fieldGroup.removeAttribute('data-user-created');
+        });
         bindResultGrid();
     }
 
@@ -646,7 +658,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function addResultField() {
         const resultGrid = getResultGrid();
         if (!resultGrid) return null;
-        const field = normalizeResultField({ label: 'فیلد جدید', placeholder: 'وارد کنید...', allowDelete: true });
+        const field = normalizeResultField({ label: 'فیلد جدید', placeholder: 'وارد کنید...' });
         const template = document.createElement('template');
         template.innerHTML = buildResultFieldMarkup(field, true).trim();
         const fieldNode = template.content.firstElementChild;
@@ -672,7 +684,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function buildPatientDetailRowMarkup(row, showDelete = false) {
         const inputId = `patient-detail-${row.key}`;
         return `
-            <div class="field-group patient-detail-field" data-patient-detail-key="${escapeHtml(row.key)}" data-patient-detail-placeholder="${escapeHtml(row.placeholder)}">
+            <div class="field-group patient-detail-field" data-patient-detail-key="${escapeHtml(row.key)}" data-patient-detail-placeholder="${escapeHtml(row.placeholder)}"${showDelete ? ' data-user-created="true"' : ''}>
                 <div class="patient-detail-label-row">
                     <label class="result-field-label" for="${escapeHtml(inputId)}"><span class="result-label-text patient-detail-label-text" contenteditable="false" spellcheck="false">${escapeHtml(row.label)}</span></label>
                     ${showDelete ? '<button class="component-delete-btn patient-detail-remove-btn" type="button" title="حذف سطر" aria-label="حذف سطر"><i class="fas fa-times"></i></button>' : ''}
@@ -965,6 +977,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const sectionNotePlaceholders = {
         'doctor-treatment': 'توضیحات دکتر یا نکات درمان را وارد کنید...',
+        'initial-images': 'توضیحات مربوط به تصاویر اولیه را وارد کنید...',
         'during-images': 'توضیحات مربوط به حین درمان را وارد کنید...',
         'extract-images': 'توضیحات مربوط به برداشت را وارد کنید...'
     };
@@ -1761,6 +1774,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function addNoteBox(container, value = '', placeholder = 'توضیحات را وارد کنید...', showDelete = false) {
         const note = document.createElement('div');
         note.className = 'treatment-note-box';
+        if (showDelete) note.dataset.userCreated = 'true';
         note.style.animation = 'fadeUp .3s ease both';
         note.innerHTML = `${showDelete ? '<button class="component-delete-btn remove-note-btn" type="button" title="حذف توضیحات" aria-label="حذف توضیحات"><i class="fas fa-times"></i></button>' : ''}<textarea class="treatment-note-text" placeholder="${placeholder}"></textarea>`;
         note.querySelector('textarea').value = value || '';
@@ -2039,37 +2053,50 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- رویدادهای تایپ متنی ---
-    const firstNameInput = document.getElementById('firstName');
-    const lastNameInput = document.getElementById('lastName');
     const patientNameInput = document.getElementById('patientName');
-
-    function composePatientName(firstName = firstNameInput?.value, lastName = lastNameInput?.value) {
-        return [firstName, lastName]
-            .map(part => String(part || '').replace(/\s+/g, ' ').trim())
-            .filter(Boolean)
-            .join(' ');
-    }
-
-    function splitPatientName(fullName = '') {
-        const parts = String(fullName || '').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
-        return {
-            firstName: parts.shift() || '',
-            lastName: parts.join(' ')
-        };
-    }
+    const mobileNumberInput = document.getElementById('mobileNumber');
+    const orthodonticStartDateInput = document.getElementById('orthodonticStartDate');
 
     function syncPatientName() {
-        const fullName = composePatientName();
-        if (patientNameInput) patientNameInput.value = fullName;
+        const fullName = String(patientNameInput?.value || '').replace(/\s+/g, ' ').trim();
         document.getElementById('nameDisplay').textContent = fullName || 'نام و نام خانوادگی بیمار';
         return fullName;
     }
 
-    [firstNameInput, lastNameInput].forEach(input => {
-        input?.addEventListener('input', () => {
-            syncPatientName();
-            Autosave.trigger(patientNameInput);
-        });
+    patientNameInput?.addEventListener('input', () => {
+        syncPatientName();
+        Autosave.trigger(patientNameInput);
+    });
+
+    patientNameInput?.addEventListener('blur', () => {
+        patientNameInput.value = syncPatientName();
+    });
+
+    mobileNumberInput?.addEventListener('input', () => {
+        const normalized = normalizeMobileNumber(mobileNumberInput.value);
+        if (mobileNumberInput.value !== normalized) mobileNumberInput.value = normalized;
+        mobileNumberInput.removeAttribute('aria-invalid');
+        Autosave.trigger(mobileNumberInput);
+    });
+
+    mobileNumberInput?.addEventListener('blur', () => {
+        const mobile = normalizeMobileNumber(mobileNumberInput.value);
+        mobileNumberInput.value = mobile;
+        mobileNumberInput.toggleAttribute('aria-invalid', Boolean(mobile && !/^09\d{9}$/.test(mobile)));
+    });
+
+    orthodonticStartDateInput?.addEventListener('input', () => {
+        const normalized = normalizeJalaliDateInput(orthodonticStartDateInput.value);
+        if (orthodonticStartDateInput.value !== normalized) orthodonticStartDateInput.value = normalized;
+        orthodonticStartDateInput.removeAttribute('aria-invalid');
+        Autosave.trigger(orthodonticStartDateInput);
+    });
+
+    orthodonticStartDateInput?.addEventListener('blur', () => {
+        const rawValue = orthodonticStartDateInput.value.trim();
+        const parsedDate = parseJalaliDate(rawValue);
+        orthodonticStartDateInput.toggleAttribute('aria-invalid', Boolean(rawValue && !parsedDate));
+        if (parsedDate) orthodonticStartDateInput.value = formatJalaliDate(parsedDate);
     });
 
     document.getElementById('fileNumber')?.addEventListener('input', (event) => {
@@ -2173,6 +2200,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const treatmentNotes = document.getElementById('treatmentNotes');
+    const initialNotes = document.getElementById('initialNotes');
     const duringNotes = document.getElementById('duringNotes');
     const extractNotes = document.getElementById('extractNotes');
 
@@ -2184,11 +2212,16 @@ document.addEventListener('DOMContentLoaded', () => {
         return addNoteBox(duringNotes, value, 'توضیحات مربوط به حین درمان را وارد کنید...');
     }
 
+    function addInitialNote(value = '') {
+        return addNoteBox(initialNotes, value, 'توضیحات مربوط به تصاویر اولیه را وارد کنید...');
+    }
+
     function addExtractNote(value = '') {
         return addNoteBox(extractNotes, value, 'توضیحات مربوط به برداشت را وارد کنید...');
     }
 
     bindNoteContainer(treatmentNotes);
+    bindNoteContainer(initialNotes);
     bindNoteContainer(duringNotes);
     bindNoteContainer(extractNotes);
 
@@ -2197,6 +2230,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const c = document.getElementById(containerId);
         const d = document.createElement('div');
         d.className = 'image-upload-card';
+        d.dataset.userCreated = 'true';
         d.style.animation = 'fadeUp .3s ease both';
         d.innerHTML = createImageCardMarkup(headerText, 'fa-upload', true);
         bindImageCardMenu(d);
@@ -2215,6 +2249,7 @@ document.addEventListener('DOMContentLoaded', () => {
         card.dataset.sectionKey = key;
         card.dataset.printSection = key;
         card.dataset.customSection = 'true';
+        if (showDelete) card.dataset.userCreated = 'true';
         card.innerHTML = `
             ${showDelete ? '<button class="component-delete-btn delete-section-btn" type="button" title="حذف کادر" aria-label="حذف کادر"><i class="fas fa-trash-alt"></i></button>' : ''}
             <div class="card-title"><i class="fas fa-layer-group"></i><input class="inline-section-title custom-section-title" type="text" value="${escapeHtml(title)}" aria-label="عنوان کادر"></div>
@@ -2884,7 +2919,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function resetPatientForm({ identity = null } = {}) {
-        const nextIdentity = identity || { firstName: '', lastName: '', fileNumber: '' };
+        const nextIdentity = identity || { name: '', mobile: '', orthodonticStartDate: '', fileNumber: '' };
         Autosave.resetForNewPatient();
         clearTimeout(treatmentSummarySaveTimer);
         clearTimeout(treatmentSummaryBlurTimer);
@@ -2893,8 +2928,11 @@ document.addEventListener('DOMContentLoaded', () => {
         closeImageCardMenus();
         closeSectionMenus();
 
-        firstNameInput.value = nextIdentity.firstName || '';
-        lastNameInput.value = nextIdentity.lastName || '';
+        patientNameInput.value = nextIdentity.name || '';
+        mobileNumberInput.value = normalizeMobileNumber(nextIdentity.mobile || '');
+        orthodonticStartDateInput.value = normalizeJalaliDateInput(nextIdentity.orthodonticStartDate || '');
+        mobileNumberInput.removeAttribute('aria-invalid');
+        orthodonticStartDateInput.removeAttribute('aria-invalid');
         fileNumberInput.value = normalizeFileNumber(nextIdentity.fileNumber || '');
         syncPatientName();
         document.getElementById('fileDisplay').textContent = fileNumberInput.value || '---';
@@ -2919,6 +2957,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderPatientDetailRows([]);
         document.querySelectorAll('.custom-card[data-custom-section="true"]').forEach(card => card.remove());
         treatmentNotes.innerHTML = '';
+        initialNotes.innerHTML = '';
         duringNotes.innerHTML = '';
         extractNotes.innerHTML = '';
         renderResultFields(RESULT_DEFAULT_FIELDS);
@@ -2958,7 +2997,10 @@ document.addEventListener('DOMContentLoaded', () => {
         setFileSearchState(true, `در حال جستجوی پرونده ${toPersianDigits(fileNumber)}...`);
         Autosave.updateStatus('در حال جستجو...', '#3b82f6');
         try {
+            const health = await DB.healthCheck();
+            if (!health.ok) throw health.error || new Error('ارتباط با پایگاه داده برقرار نشد.');
             const patient = await DB.getPatient(fileNumber);
+            if (DB.lastError) throw DB.lastError;
             if (patient) {
                 Autosave.updateStatus('پرونده پیدا شد...', '#22c55e');
                 renderPatientData(patient);
@@ -2972,8 +3014,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const userWantsToCreate = await showModal(`شماره پرونده "${fileNumber}" موجود نمی‌باشد. ایجاد شود؟`);
                 if (userWantsToCreate) {
                     const identity = {
-                        firstName: firstNameInput.value,
-                        lastName: lastNameInput.value,
+                        name: patientNameInput.value,
+                        mobile: mobileNumberInput.value,
+                        orthodonticStartDate: orthodonticStartDateInput.value,
                         fileNumber
                     };
                     resetPatientForm({ identity });
@@ -3004,10 +3047,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderPatientData(patient) {
-        const nameParts = splitPatientName(patient.name || '');
         resetPatientForm({
             identity: {
-                ...nameParts,
+                name: patient.name || '',
+                mobile: patient.mobile || patient.phone || '',
+                orthodonticStartDate: patient.orthodontic_start_date || '',
                 fileNumber: patient.file_number || fileNumberInput.value
             }
         });
@@ -3042,6 +3086,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 addTreatmentNote(value);
             });
         }
+        initialNotes.innerHTML = '';
+        (patientMeta.initialNotes || []).forEach(note => addInitialNote(note));
         duringNotes.innerHTML = '';
         (patientMeta.duringNotes || []).forEach(note => addDuringNote(note));
         extractNotes.innerHTML = '';
@@ -3139,7 +3185,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (actionParam === 'new') {
         resetPatientForm();
         setTimeout(() => {
-            firstNameInput.focus();
+            patientNameInput.focus();
             showToast('آماده برای تشکیل پرونده جدید');
         }, 300);
     } else if (fileNumberParam) {

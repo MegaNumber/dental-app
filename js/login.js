@@ -63,6 +63,11 @@ async function handleLogin(event) {
             throw new Error('سیستم پایگاه داده بارگذاری نشده است.');
         }
 
+        const health = await window.DB.healthCheck();
+        if (!health.ok) {
+            throw health.error || new Error('ارتباط با پایگاه داده برقرار نشد.');
+        }
+
         const result = await window.DB.loginUser(username, password);
 
         if (result.success) {

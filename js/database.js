@@ -15,7 +15,56 @@ function getFileExtension(fileName) {
     return match ? match[1] : 'jpg';
 }
 
+async function getConnectedSupabase() {
+    const client = window.supabase;
+    if (!client?.from || !client?.storage) {
+        throw new Error('کلاینت پایگاه داده در مرورگر آماده نیست.');
+    }
+
+    const connection = window.SupabaseConnection;
+    if (connection?.ready) {
+        let connected = await connection.ready;
+        if (!connected && navigator.onLine && typeof connection.check === 'function') {
+            connection.ready = connection.check();
+            connected = await connection.ready;
+        }
+        if (!connected) {
+            throw connection.lastError || new Error('ارتباط با سرویس پایگاه داده برقرار نشد.');
+        }
+    }
+
+    return client;
+}
+
+function logDatabaseError(operation, error) {
+    console.error(`[Database:${operation}]`, {
+        message: error?.message || String(error),
+        code: error?.code || '',
+        details: error?.details || '',
+        hint: error?.hint || '',
+        status: error?.status || ''
+    });
+}
+
 const DB = {
+    lastError: null,
+
+    async healthCheck() {
+        try {
+            const client = await getConnectedSupabase();
+            const { error } = await client
+                .from('patients')
+                .select('id', { head: true, count: 'exact' })
+                .limit(1);
+            if (error) throw error;
+            this.lastError = null;
+            return { ok: true };
+        } catch (error) {
+            this.lastError = error;
+            logDatabaseError('healthCheck', error);
+            return { ok: false, error };
+        }
+    },
     
     // === سیستم مدیریت کاربران و تنظیمات سوپابیس (جدید ۲۰۲۶) ===
     
@@ -80,12 +129,13 @@ const DB = {
 
     async ensureAdminUser() {
         try {
+            const client = await getConnectedSupabase();
             const adminPhone = '09337593737';
             const adminPassRaw = 'M@hdi8261';
             const passwordHash = await this.hashPassword(adminPassRaw);
 
             // بررسی وجود ادمین
-            const { data, error } = await window.supabase
+            const { data, error } = await client
                 .from('app_users')
                 .select('*')
                 .eq('phone', adminPhone)
@@ -98,7 +148,7 @@ const DB = {
 
             if (!data) {
                 // ثبت کاربر ادمین اصلی
-                const { error: insertError } = await window.supabase
+                const { error: insertError } = await client
                     .from('app_users')
                     .insert([{
                         phone: adminPhone,
@@ -110,13 +160,15 @@ const DB = {
                 console.log('ادمین اصلی با موفقیت در دیتابیس سوپابیس ایجاد شد.');
             }
         } catch (err) {
-            console.error('خطا در راه‌اندازی ادمین اصلی:', err.message);
+            this.lastError = err;
+            logDatabaseError('ensureAdminUser', err);
         }
     },
 
     async loginUser(phone, password) {
         try {
-            const { data: user, error } = await window.supabase
+            const client = await getConnectedSupabase();
+            const { data: user, error } = await client
                 .from('app_users')
                 .select('*')
                 .eq('phone', phone)
@@ -129,7 +181,7 @@ const DB = {
                 if (phone === '09337593737' && password === 'M@hdi8261') {
                     await this.ensureAdminUser();
                     // مجدداً تلاش برای دریافت اطلاعات کاربر
-                    const { data: retryUser, error: retryErr } = await window.supabase
+                    const { data: retryUser, error: retryErr } = await client
                         .from('app_users')
                         .select('*')
                         .eq('phone', phone)
@@ -155,34 +207,40 @@ const DB = {
             }
 
             if (isMatch) {
+                this.lastError = null;
                 return { success: true, user };
             } else {
                 return { success: false, message: 'کلمه عبور وارد شده اشتباه است.' };
             }
         } catch (err) {
-            console.error('خطا در ورود کاربر:', err.message);
-            return { success: false, message: 'خطا در اتصال به شبکه یا پایگاه داده.' };
+            this.lastError = err;
+            logDatabaseError('loginUser', err);
+            return { success: false, message: `خطا در اتصال به پایگاه داده: ${err.message || 'خطای نامشخص'}` };
         }
     },
 
     async getUsers() {
         try {
-            const { data, error } = await window.supabase
+            const client = await getConnectedSupabase();
+            const { data, error } = await client
                 .from('app_users')
                 .select('*')
                 .order('created_at', { ascending: false });
             if (error) throw error;
+            this.lastError = null;
             return data || [];
         } catch (err) {
-            console.error('خطا در دریافت کاربران:', err.message);
+            this.lastError = err;
+            logDatabaseError('getUsers', err);
             return [];
         }
     },
 
     async createUser(phone, password, role = 'staff', createdBy = '') {
         try {
+            const client = await getConnectedSupabase();
             const passwordHash = await this.hashPassword(password);
-            const { data, error } = await window.supabase
+            const { data, error } = await client
                 .from('app_users')
                 .insert([{
                     phone,
@@ -194,9 +252,11 @@ const DB = {
                 .single();
 
             if (error) throw error;
+            this.lastError = null;
             return { success: true, data };
         } catch (err) {
-            console.error('خطا در ثبت کاربر جدید:', err.message);
+            this.lastError = err;
+            logDatabaseError('createUser', err);
             let msg = 'خطا در ثبت کاربر جدید.';
             if (err.code === '23505') {
                 msg = 'این شماره تماس قبلاً در سیستم ثبت شده است.';
@@ -207,14 +267,17 @@ const DB = {
 
     async deleteUser(userId) {
         try {
-            const { error } = await window.supabase
+            const client = await getConnectedSupabase();
+            const { error } = await client
                 .from('app_users')
                 .delete()
                 .eq('id', userId);
             if (error) throw error;
+            this.lastError = null;
             return { success: true };
         } catch (err) {
-            console.error('خطا در حذف کاربر:', err.message);
+            this.lastError = err;
+            logDatabaseError('deleteUser', err);
             return { success: false, message: 'خطا در حذف کاربر از پایگاه داده.' };
         }
     },
@@ -222,9 +285,10 @@ const DB = {
     async deletePatient(patientId) {
         try {
             if (!patientId) return { success: false, message: 'شناسه بیمار نامعتبر است.' };
+            const client = await getConnectedSupabase();
 
             // ۱. حذف رکوردهای تصاویر بیمار از جدول patient_images
-            const { error: dbImgError } = await window.supabase
+            const { error: dbImgError } = await client
                 .from('patient_images')
                 .delete()
                 .eq('patient_id', patientId);
@@ -232,38 +296,44 @@ const DB = {
             if (dbImgError) throw dbImgError;
 
             // ۲. حذف پرونده بیمار از جدول patients
-            const { error: patError } = await window.supabase
+            const { error: patError } = await client
                 .from('patients')
                 .delete()
                 .eq('id', patientId);
 
             if (patError) throw patError;
 
+            this.lastError = null;
             return { success: true };
         } catch (err) {
-            console.error('خطا در حذف کامل پرونده بیمار:', err.message);
+            this.lastError = err;
+            logDatabaseError('deletePatient', err);
             return { success: false, message: `خطا در حذف پرونده: ${err.message}` };
         }
     },
 
     async savePatientInfo(patientData) {
         try {
-            const { data, error } = await window.supabase
+            const client = await getConnectedSupabase();
+            const { data, error } = await client
                 .from('patients')
                 .upsert(patientData, { onConflict: 'file_number' })
                 .select('id, file_number')
                 .single();
             if (error) throw error;
+            this.lastError = null;
             return data;
         } catch (err) {
-            console.error('خطا در ذخیره اطلاعات بیمار:', err.message);
+            this.lastError = err;
+            logDatabaseError('savePatientInfo', err);
             return null;
         }
     },
 
     async getPatient(fileNumber) {
         try {
-            const { data: patient, error } = await window.supabase
+            const client = await getConnectedSupabase();
+            const { data: patient, error } = await client
                 .from('patients')
                 .select('*')
                 .eq('file_number', fileNumber)
@@ -272,7 +342,7 @@ const DB = {
             if (error && error.code !== 'PGRST116') throw error; 
 
             if (patient) {
-                const { data: images, error: imgError } = await window.supabase
+                const { data: images, error: imgError } = await client
                     .from('patient_images')
                     .select('*')
                     .eq('patient_id', patient.id)
@@ -281,22 +351,27 @@ const DB = {
                 if (imgError) throw imgError;
                 patient.images = images || [];
             }
+            this.lastError = null;
             return patient;
         } catch (err) {
-            console.error('خطا در دریافت اطلاعات بیمار:', err.message);
+            this.lastError = err;
+            logDatabaseError('getPatient', err);
             return null;
         }
     },
 
     async getAllPatients() {
         try {
-            const { data, error } = await window.supabase
+            const client = await getConnectedSupabase();
+            const { data, error } = await client
                 .from('patients')
                 .select('*');
             if (error) throw error;
+            this.lastError = null;
             return data || [];
         } catch (err) {
-            console.error('خطا در دریافت لیست بیماران:', err.message);
+            this.lastError = err;
+            logDatabaseError('getAllPatients', err);
             return [];
         }
     },
@@ -311,19 +386,21 @@ const DB = {
 
     async uploadImage(file, filePath) {
         try {
-            const { data, error } = await window.supabase.storage
+            const client = await getConnectedSupabase();
+            const { data, error } = await client.storage
                 .from(STORAGE_BUCKET)
                 .upload(filePath, file, { cacheControl: '3600', upsert: true });
 
             if (error) throw error;
 
-            const { data: urlData } = window.supabase.storage
+            const { data: urlData } = client.storage
                 .from(STORAGE_BUCKET)
                 .getPublicUrl(data.path);
 
             return urlData.publicUrl;
         } catch (err) {
-            console.error('خطا در آپلود عکس:', err.message);
+            this.lastError = err;
+            logDatabaseError('uploadImage', err);
             return null;
         }
     },
@@ -333,28 +410,35 @@ const DB = {
             const urlParts = imageUrl.split(`${STORAGE_BUCKET}/`);
             if (urlParts.length < 2) return;
             const filePath = decodeURIComponent(urlParts[1].split('?')[0]); 
-            const { error } = await window.supabase.storage.from(STORAGE_BUCKET).remove([filePath]);
+            const client = await getConnectedSupabase();
+            const { error } = await client.storage.from(STORAGE_BUCKET).remove([filePath]);
             if (error) throw error;
+            this.lastError = null;
         } catch (err) {
-            console.error('خطا در حذف عکس:', err.message);
+            this.lastError = err;
+            logDatabaseError('deleteImage', err);
         }
     },
 
     async syncSectionImages(patientId, sectionName, imageUrlsArray) {
         if (!patientId) return;
         try {
+            const client = await getConnectedSupabase();
             const uniqueUrls = Array.from(new Set((imageUrlsArray || []).filter(Boolean)));
 
             // اول قدیمی‌ها را پاک کن
-            const { error: delError } = await window.supabase
+            const { error: delError } = await client
                 .from('patient_images')
                 .delete()
                 .eq('patient_id', patientId)
                 .eq('section', sectionName);
-                
+
             if (delError) throw delError;
 
-            if (uniqueUrls.length === 0) return;
+            if (uniqueUrls.length === 0) {
+                this.lastError = null;
+                return;
+            }
 
             // بعد جدیدها را اضافه کن
             const newImages = uniqueUrls.map(url => ({
@@ -363,13 +447,15 @@ const DB = {
                 image_url: url
             }));
 
-            const { error: insError } = await window.supabase
+            const { error: insError } = await client
                 .from('patient_images')
                 .insert(newImages);
                 
             if (insError) throw insError;
+            this.lastError = null;
         } catch (err) {
-            console.error(`خطا در همگام‌سازی بخش ${sectionName}:`, err.message);
+            this.lastError = err;
+            logDatabaseError(`syncSectionImages:${sectionName}`, err);
             throw err; // پرتاب خطا تا autosave بداند یک بخش مشکل دارد (اما بقیه بخش‌ها ذخیره می‌شوند)
         }
     }

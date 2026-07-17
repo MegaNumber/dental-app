@@ -19,7 +19,7 @@
     <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/vendor/supabase-2.110.7.js"></script>
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
@@ -59,30 +59,9 @@
 
     <main class="container">
 
-        <!-- بخش وضعیت بیمار (Patient Status) -->
-        <section class="card" data-section-key="patient-status" id="patientStatusCard">
-            <div class="card-title"><i class="fas fa-heartbeat"></i>وضعیت بیمار</div>
-            <div class="status-box-layout">
-                <div class="status-select-wrapper">
-                    <i class="fas fa-circle status-indicator-dot" id="statusIndicatorDot"></i>
-                    <select id="patientStatus" class="patient-status-select" aria-label="وضعیت بیمار">
-                        <option value="under_treatment" data-color="#2563eb" data-bg="#eff6ff">تحت درمان</option>
-                        <option value="finished" data-color="#16a34a" data-bg="#f0fdf4">اتمام درمان</option>
-                        <option value="retreatment" data-color="#7e22ce" data-bg="#faf5ff">درمان مجدد</option>
-                        <option value="suspended" data-color="#ea580c" data-bg="#fff7ed">توقف درمان</option>
-                    </select>
-                    <div class="status-select-arrow"><i class="fas fa-chevron-down"></i></div>
-                </div>
-                <div class="status-badge-display" id="statusBadgeDisplay">تحت درمان</div>
-            </div>
-        </section>
-
         <section class="card" data-section-key="patient-info" data-print-section="patient-info">
             <div class="card-title"><i class="fas fa-user"></i>مشخصات بیمار</div>
-            <div class="patient-details-grid" id="patientDetailsFields">
-                <div class="field-group"><label for="firstName">نام</label><input type="text" id="firstName" placeholder="نام بیمار" autocomplete="given-name"></div>
-                <div class="field-group"><label for="lastName">نام خانوادگی</label><input type="text" id="lastName" placeholder="نام خانوادگی بیمار" autocomplete="family-name"></div>
-                <input type="hidden" id="patientName" value="">
+            <div class="patient-details-grid patient-details-stack" id="patientDetailsFields">
                 <div class="field-group file-number-field">
                     <label for="fileNumber">شماره پرونده</label>
                     <div class="file-number-control">
@@ -94,6 +73,34 @@
                         </button>
                     </div>
                     <span class="file-search-feedback" id="fileSearchFeedback" aria-live="polite">شماره پرونده را وارد کرده و جستجو را بزنید.</span>
+                </div>
+                <div class="field-group">
+                    <label for="mobileNumber">شماره همراه</label>
+                    <input type="tel" id="mobileNumber" class="numeric-input" placeholder="مثلاً 09123456789" inputmode="tel" autocomplete="tel" maxlength="11">
+                </div>
+                <div class="field-group">
+                    <label for="patientName">نام و نام خانوادگی</label>
+                    <input type="text" id="patientName" placeholder="نام و نام خانوادگی بیمار" autocomplete="name">
+                </div>
+                <div class="field-group">
+                    <label for="orthodonticStartDate">تاریخ شروع ارتودنسی</label>
+                    <input type="text" id="orthodonticStartDate" class="numeric-input" placeholder="مثلاً ۱۴۰۵/۰۳/۱۵" inputmode="numeric" autocomplete="off" maxlength="10">
+                </div>
+                <div class="field-group patient-status-field">
+                    <label for="patientStatus">وضعیت بیمار</label>
+                    <div class="status-box-layout">
+                        <div class="status-select-wrapper">
+                            <i class="fas fa-circle status-indicator-dot" id="statusIndicatorDot"></i>
+                            <select id="patientStatus" class="patient-status-select" aria-label="وضعیت بیمار">
+                                <option value="under_treatment" data-color="#2563eb" data-bg="#eff6ff">تحت درمان</option>
+                                <option value="finished" data-color="#16a34a" data-bg="#f0fdf4">اتمام درمان</option>
+                                <option value="retreatment" data-color="#7e22ce" data-bg="#faf5ff">درمان مجدد</option>
+                                <option value="suspended" data-color="#ea580c" data-bg="#fff7ed">توقف درمان</option>
+                            </select>
+                            <div class="status-select-arrow"><i class="fas fa-chevron-down"></i></div>
+                        </div>
+                        <div class="status-badge-display" id="statusBadgeDisplay">تحت درمان</div>
+                    </div>
                 </div>
             </div>
             <div class="images-section mt-5" id="patientImages">
@@ -115,6 +122,7 @@
             <div class="images-section" id="initialImages">
                 <div class="image-upload-card"><div class="image-upload-card-header"><i class="fas fa-upload"></i>آپلود تصویر اولیه</div><label class="upload-rect" tabindex="0" role="button" aria-label="آپلود تصویر اولیه بیمار"><i class="fas fa-cloud-upload-alt"></i><span>preimage</span><input type="file" accept="image/*"></label></div>
             </div>
+            <div class="treatment-notes" id="initialNotes"></div>
         </section>
 
         <section class="card" data-section-key="during-images" data-print-section="during-images">

@@ -55,6 +55,8 @@ const Autosave = {
         const patientData = {
             name: document.getElementById('patientName').value.trim(),
             file_number: fileNumber,
+            mobile: document.getElementById('mobileNumber')?.value.trim() || null,
+            orthodontic_start_date: document.getElementById('orthodonticStartDate')?.value.trim() || null,
             cover_url: document.getElementById('coverZone').getAttribute('data-db-url') || null,
             profile_url: document.getElementById('profilePicZone').getAttribute('data-db-url') || null,
             treatments: this.collectTreatments(),
@@ -182,6 +184,9 @@ const Autosave = {
                 title: rect.closest('.image-upload-card')?.querySelector('.image-upload-card-title')?.textContent.trim() || ''
             })).filter(item => item.url),
             patientDetailRows: window.PatientDetails?.collect ? window.PatientDetails.collect() : [],
+            initialNotes: Array.from(document.querySelectorAll('#initialNotes .treatment-note-text'))
+                .map(textarea => textarea.value.trim())
+                .filter(Boolean),
             duringNotes: Array.from(document.querySelectorAll('#duringNotes .treatment-note-text'))
                 .map(textarea => textarea.value.trim())
                 .filter(Boolean),

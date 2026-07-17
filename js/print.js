@@ -132,6 +132,8 @@ const PrintManager = {
         const patient = {
             name: this.value('patientName', 'نام و نام خانوادگی بیمار').trim() || 'نام و نام خانوادگی بیمار',
             fileNumber: this.value('fileNumber', '---').trim() || '---',
+            mobile: this.value('mobileNumber', '---').trim() || '---',
+            orthodonticStartDate: this.value('orthodonticStartDate', '---').trim() || '---',
             date: this.getJalaliStr(),
             coverUrl: this.el('coverZone')?.getAttribute('data-db-url') || '',
             profileUrl: this.el('profilePicZone')?.getAttribute('data-db-url') || '',
@@ -161,8 +163,10 @@ const PrintManager = {
 
         if (key === 'patient-info') {
             const values = [
+                ['شماره پرونده', patient.fileNumber || '---'],
+                ['شماره همراه', patient.mobile || '---'],
                 ['نام و نام خانوادگی', patient.name || '---'],
-                ['شماره پرونده', patient.fileNumber || '---']
+                ['تاریخ شروع ارتودنسی', patient.orthodonticStartDate || '---']
             ];
             const statusSelect = document.getElementById('patientStatus');
             if (statusSelect) {

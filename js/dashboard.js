@@ -131,7 +131,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const normalizedQuery = toEnglishDigits(state.query.toLowerCase().trim());
         return state.patients.filter(patient => {
             const meta = parsePatientMeta(patient);
-            const searchable = toEnglishDigits(`${patient.name || ''} ${patient.file_number || ''} ${meta.summary}`.toLowerCase());
+            const searchable = toEnglishDigits(`${patient.name || ''} ${patient.file_number || ''} ${patient.mobile || patient.phone || ''} ${meta.summary}`.toLowerCase());
             const statusMatch = state.status === 'all'
                 || meta.status === state.status
                 || (state.status === 'other' && !['under_treatment', 'finished'].includes(meta.status));
@@ -371,7 +371,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
         try {
+            const health = await window.DB.healthCheck();
+            if (!health.ok) throw health.error || new Error('Database health check failed.');
             state.patients = await window.DB.getAllPatients();
+            if (window.DB.lastError) throw window.DB.lastError;
             state.patients.sort((first, second) => new Date(second.updated_at || second.created_at || 0) - new Date(first.updated_at || first.created_at || 0));
             state.loaded = true;
             updateMetrics();
