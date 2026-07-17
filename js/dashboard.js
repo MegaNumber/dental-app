@@ -11,7 +11,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         range: 7,
         view: localStorage.getItem('dashboardView') || 'grid',
         loaded: false,
-        renderFrame: 0
+        renderFrame: 0,
+        health: {
+            networkOnline: navigator.onLine,
+            connectionStatus: window.SupabaseConnection?.status || 'initializing',
+            databaseStatus: 'checking',
+            syncStatus: 'checking',
+            latency: null,
+            lastChecked: null,
+            lastSuccess: localStorage.getItem('databaseLastSuccessAt')
+                ? new Date(localStorage.getItem('databaseLastSuccessAt'))
+                : null,
+            source: 'بارگذاری داشبورد',
+            error: null,
+            errorStage: '',
+            busy: false,
+            detailsExpanded: localStorage.getItem('databaseStatusExpanded') === 'true'
+        }
     };
 
     const PERSIAN_DIGITS = '۰۱۲۳۴۵۶۷۸۹';
@@ -20,6 +36,38 @@ document.addEventListener('DOMContentLoaded', async () => {
         finished: { label: 'تکمیل‌شده', color: '#16a879', background: 'var(--green-soft)' },
         retreatment: { label: 'درمان مجدد', color: '#b36ade', background: '#f7edfc' },
         suspended: { label: 'توقف درمان', color: '#e59734', background: 'var(--amber-soft)' }
+    };
+    const SYSTEM_HEALTH_CONFIG = {
+        healthy: {
+            badge: 'سالم',
+            sidebar: 'سامانه پایدار است',
+            message: 'اتصال پایگاه داده برقرار و اطلاعات کلینیک با موفقیت همگام شده است.',
+            icon: 'fas fa-circle-check'
+        },
+        checking: {
+            badge: 'در حال بررسی',
+            sidebar: 'در حال بررسی سامانه',
+            message: 'اتصال سرویس، دسترسی داده‌ها و آخرین همگام‌سازی در حال ارزیابی است.',
+            icon: 'fas fa-rotate'
+        },
+        degraded: {
+            badge: 'نیازمند توجه',
+            sidebar: 'سامانه نیازمند بررسی است',
+            message: 'ارتباط اصلی برقرار است، اما بخشی از دریافت یا همگام‌سازی اطلاعات کامل نشده است.',
+            icon: 'fas fa-triangle-exclamation'
+        },
+        offline: {
+            badge: 'بدون شبکه',
+            sidebar: 'اتصال شبکه قطع است',
+            message: 'مرورگر به شبکه دسترسی ندارد. اطلاعات قبلی تا زمان اتصال مجدد حفظ می‌شود.',
+            icon: 'fas fa-wifi'
+        },
+        error: {
+            badge: 'اختلال اتصال',
+            sidebar: 'پایگاه داده در دسترس نیست',
+            message: 'ارتباط با سرویس یا دسترسی به داده‌ها ناموفق است. جزئیات خطا را بررسی کنید.',
+            icon: 'fas fa-database'
+        }
     };
 
     const elements = {
@@ -37,7 +85,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         donutSvg: document.getElementById('statusDonutSvg'),
         chartTooltip: document.getElementById('chartTooltip'),
         userModal: document.getElementById('userManagementModal'),
-        usersTableBody: document.getElementById('usersTableBody')
+        usersTableBody: document.getElementById('usersTableBody'),
+        databaseStatusCenter: document.getElementById('databaseStatusCenter'),
+        databaseStatusShortcut: document.getElementById('databaseStatusShortcut'),
+        databaseStatusIcon: document.getElementById('databaseStatusIcon'),
+        databaseHealthBadge: document.getElementById('databaseHealthBadge'),
+        databaseStatusMessage: document.getElementById('databaseStatusMessage'),
+        databaseDetailsToggle: document.getElementById('databaseDetailsToggle'),
+        databaseStatusDetails: document.getElementById('databaseStatusDetails'),
+        databaseRetryButton: document.getElementById('databaseRetryButton'),
+        databaseAlert: document.getElementById('databaseAlert'),
+        databaseAlertIcon: document.getElementById('databaseAlertIcon'),
+        databaseAlertTitle: document.getElementById('databaseAlertTitle'),
+        databaseAlertMessage: document.getElementById('databaseAlertMessage'),
+        databaseErrorDetail: document.getElementById('databaseErrorDetail'),
+        networkHealthItem: document.getElementById('networkHealthItem'),
+        serviceHealthItem: document.getElementById('serviceHealthItem'),
+        databaseHealthItem: document.getElementById('databaseHealthItem'),
+        latencyHealthItem: document.getElementById('latencyHealthItem')
     };
 
     function toPersianDigits(value) {
@@ -86,6 +151,229 @@ document.addEventListener('DOMContentLoaded', async () => {
     function setText(id, value) {
         const element = document.getElementById(id);
         if (element) element.textContent = value;
+    }
+
+    function formatClock(dateValue, withSeconds = false) {
+        if (!dateValue) return 'هنوز انجام نشده';
+        try {
+            return new Intl.DateTimeFormat('fa-IR', {
+                hour: '2-digit',
+                minute: '2-digit',
+                ...(withSeconds ? { second: '2-digit' } : {})
+            }).format(dateValue);
+        } catch (_) {
+            return 'ثبت نشده';
+        }
+    }
+
+    function formatStatusDate(dateValue) {
+        if (!dateValue) return 'ثبت نشده';
+        try {
+            return new Intl.DateTimeFormat('fa-IR-u-ca-persian', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            }).format(dateValue);
+        } catch (_) {
+            return formatClock(dateValue);
+        }
+    }
+
+    function formatErrorDetail(error) {
+        if (!error) return '';
+        const message = String(error.message || error);
+        const context = [
+            error.code ? `کد: ${error.code}` : '',
+            error.status ? `وضعیت: ${error.status}` : '',
+            error.details ? `جزئیات: ${error.details}` : '',
+            error.hint ? `راهنما: ${error.hint}` : ''
+        ].filter(Boolean);
+        return [message, ...context].join('\n');
+    }
+
+    function setHealthIndicator(item, status, valueId, value, metaId, meta) {
+        if (!item) return;
+        item.dataset.status = status;
+        setText(valueId, value);
+        setText(metaId, meta);
+    }
+
+    function setDatabaseDetailsExpanded(expanded, { persist = true } = {}) {
+        const nextValue = Boolean(expanded);
+        state.health.detailsExpanded = nextValue;
+        elements.databaseStatusCenter?.classList.toggle('is-expanded', nextValue);
+        elements.databaseDetailsToggle?.setAttribute('aria-expanded', String(nextValue));
+        elements.databaseStatusDetails?.setAttribute('aria-hidden', String(!nextValue));
+        const label = elements.databaseDetailsToggle?.querySelector('span');
+        if (label) label.textContent = nextValue ? 'بستن جزئیات' : 'جزئیات';
+        if (persist) localStorage.setItem('databaseStatusExpanded', String(nextValue));
+    }
+
+    function getOverallHealthState() {
+        const health = state.health;
+        if (!health.networkOnline) return 'offline';
+        if (health.busy) return 'checking';
+        if (health.connectionStatus === 'unavailable' || health.databaseStatus === 'error') return 'error';
+        if (['initializing', 'checking'].includes(health.connectionStatus)
+            || health.databaseStatus === 'checking' || health.syncStatus === 'checking') {
+            return 'checking';
+        }
+        if (health.syncStatus === 'error' || health.syncStatus === 'stale') return 'degraded';
+        return 'healthy';
+    }
+
+    function getRecoveryHint(overallState) {
+        if (overallState === 'healthy') return 'نیازی به اقدام نیست؛ پایش خودکار فعال است.';
+        if (overallState === 'checking') return 'این بررسی خودکار است و ممکن است چند ثانیه زمان ببرد.';
+        if (overallState === 'offline') return 'اتصال اینترنت دستگاه را بررسی کنید؛ پس از بازگشت شبکه، بررسی خودکار انجام می‌شود.';
+        if (overallState === 'degraded') return 'برای دریافت تازه‌ترین اطلاعات، بررسی مجدد را اجرا کنید.';
+        return 'اتصال شبکه، دسترسی پروژه Supabase و مجوز جدول patients را بررسی کنید.';
+    }
+
+    function renderDatabaseHealth() {
+        const health = state.health;
+        const overallState = getOverallHealthState();
+        const config = SYSTEM_HEALTH_CONFIG[overallState];
+        const connectionStatus = health.connectionStatus;
+        const serviceStatus = !health.networkOnline
+            ? 'offline'
+            : connectionStatus === 'connected'
+                ? 'healthy'
+                : connectionStatus === 'unavailable'
+                    ? 'error'
+                    : 'checking';
+        const databaseStatus = !health.networkOnline || health.databaseStatus === 'error'
+            ? (!health.networkOnline ? 'offline' : 'error')
+            : health.databaseStatus === 'healthy'
+                ? 'healthy'
+                : 'checking';
+        const latencyStatus = health.latency == null
+            ? (overallState === 'error' || overallState === 'offline' ? 'error' : 'checking')
+            : health.latency >= 3000
+                ? 'error'
+                : health.latency >= 1000
+                    ? 'warning'
+                    : 'healthy';
+
+        elements.databaseStatusCenter?.setAttribute('data-state', overallState);
+        elements.databaseStatusCenter?.setAttribute('aria-busy', String(health.busy));
+        elements.databaseStatusShortcut?.setAttribute('data-state', overallState);
+        if (elements.databaseStatusIcon) elements.databaseStatusIcon.className = config.icon;
+        setText('sidebarSystemStatus', config.sidebar);
+        setText('databaseHealthBadge', config.badge);
+        setText('databaseStatusMessage', config.message);
+        setText('databaseLastChecked', formatClock(health.lastChecked, true));
+
+        const networkValue = health.networkOnline ? 'متصل' : 'قطع';
+        setHealthIndicator(
+            elements.networkHealthItem,
+            health.networkOnline ? 'healthy' : 'offline',
+            'networkHealthValue',
+            networkValue,
+            'networkHealthMeta',
+            health.networkOnline ? 'دسترسی مرورگر به اینترنت' : 'دستگاه آفلاین است'
+        );
+        setHealthIndicator(
+            elements.serviceHealthItem,
+            serviceStatus,
+            'serviceHealthValue',
+            serviceStatus === 'healthy' ? 'متصل' : serviceStatus === 'error' ? 'در دسترس نیست' : serviceStatus === 'offline' ? 'بدون شبکه' : 'در حال اتصال',
+            'serviceHealthMeta',
+            serviceStatus === 'healthy' ? 'پاسخ سرویس دریافت شد' : 'بررسی اتصال سرویس'
+        );
+        setHealthIndicator(
+            elements.databaseHealthItem,
+            databaseStatus,
+            'databaseAccessValue',
+            databaseStatus === 'healthy' ? 'عملیاتی' : databaseStatus === 'error' ? 'ناموفق' : databaseStatus === 'offline' ? 'بدون شبکه' : 'در حال ارزیابی',
+            'databaseAccessMeta',
+            databaseStatus === 'healthy' ? 'دسترسی به جدول پرونده‌ها برقرار است' : 'بررسی جدول patients'
+        );
+        setHealthIndicator(
+            elements.latencyHealthItem,
+            latencyStatus,
+            'databaseLatencyValue',
+            health.latency == null ? (latencyStatus === 'error' ? 'ثبت نشد' : 'اندازه‌گیری...') : `${toPersianDigits(Math.round(health.latency))} میلی‌ثانیه`,
+            'databaseLatencyMeta',
+            health.latency == null ? 'تا پاسخ پایگاه داده' : latencyStatus === 'healthy' ? 'پاسخ سریع' : latencyStatus === 'warning' ? 'پاسخ کندتر از معمول' : 'زمان پاسخ بالا'
+        );
+
+        const alertConfig = {
+            healthy: {
+                severity: 'success',
+                icon: 'fas fa-circle-check',
+                title: 'هیچ هشدار فعالی وجود ندارد',
+                message: 'اتصال و همگام‌سازی اطلاعات کلینیک بدون خطا انجام شده است.'
+            },
+            checking: {
+                severity: 'info',
+                icon: 'fas fa-circle-info',
+                title: 'بررسی سلامت سامانه در حال انجام است',
+                message: 'نتیجه اتصال و دریافت داده‌ها تا چند لحظه دیگر نمایش داده می‌شود.'
+            },
+            degraded: {
+                severity: 'warning',
+                icon: 'fas fa-triangle-exclamation',
+                title: 'داده‌های نمایش‌داده‌شده ممکن است قدیمی باشند',
+                message: 'اتصال برقرار است، اما دریافت تازه‌ترین پرونده‌ها کامل نشده است.'
+            },
+            offline: {
+                severity: 'error',
+                icon: 'fas fa-wifi',
+                title: 'اتصال شبکه دستگاه قطع است',
+                message: 'آخرین داده‌های دریافت‌شده حفظ شده‌اند و پس از اتصال مجدد، بررسی خودکار انجام می‌شود.'
+            },
+            error: {
+                severity: 'error',
+                icon: 'fas fa-database',
+                title: health.errorStage === 'sync' ? 'همگام‌سازی پرونده‌ها ناموفق بود' : 'اتصال پایگاه داده ناموفق است',
+                message: health.errorStage === 'sync'
+                    ? 'آخرین داده‌های موفق حفظ شده‌اند. برای دریافت اطلاعات جدید، بررسی مجدد را اجرا کنید.'
+                    : 'سرویس یا مجوز دسترسی داده‌ها پاسخ معتبر برنگرداند. جزئیات فنی در ادامه ثبت شده است.'
+            }
+        }[overallState];
+
+        elements.databaseAlert?.setAttribute('data-severity', alertConfig.severity);
+        if (elements.databaseAlertIcon) elements.databaseAlertIcon.className = alertConfig.icon;
+        setText('databaseAlertTitle', alertConfig.title);
+        setText('databaseAlertMessage', alertConfig.message);
+        if (elements.databaseErrorDetail) {
+            const detail = formatErrorDetail(health.error);
+            elements.databaseErrorDetail.textContent = detail;
+            elements.databaseErrorDetail.classList.toggle('hidden', !detail || overallState === 'healthy' || overallState === 'checking' || overallState === 'offline');
+        }
+
+        setText('databaseLastSuccess', formatStatusDate(health.lastSuccess));
+        setText('databaseCheckSource', health.source);
+        setText(
+            'databaseDataFreshness',
+            health.syncStatus === 'healthy'
+                ? 'به‌روز و همگام'
+                : state.loaded
+                    ? `آخرین نسخه موفق: ${formatClock(health.lastSuccess)}`
+                    : 'داده‌ای دریافت نشده'
+        );
+        setText('databaseRecoveryHint', getRecoveryHint(overallState));
+        setText(
+            'lastSyncLabel',
+            overallState === 'healthy'
+                ? `همگام‌سازی موفق: ${formatClock(health.lastSuccess)}`
+                : overallState === 'offline'
+                    ? 'در انتظار اتصال شبکه'
+                    : health.syncStatus === 'stale' || health.syncStatus === 'error'
+                        ? 'نمایش آخرین داده دریافت‌شده'
+                        : 'در حال همگام‌سازی'
+        );
+
+        elements.databaseRetryButton?.classList.toggle('is-loading', health.busy);
+        elements.databaseRetryButton?.toggleAttribute('disabled', health.busy);
+        if (overallState !== 'healthy' && overallState !== 'checking') {
+            setDatabaseDetailsExpanded(true, { persist: false });
+        } else {
+            setDatabaseDetailsExpanded(health.detailsExpanded, { persist: false });
+        }
     }
 
     function getCounts() {
@@ -365,26 +653,188 @@ document.addEventListener('DOMContentLoaded', async () => {
         setText('sidebarPatientCount', toPersianDigits(counts.total));
     }
 
-    async function loadDashboardData() {
-        if (!window.DB) {
-            elements.cardsGrid.innerHTML = '<div class="error-state"><i class="fas fa-triangle-exclamation"></i><strong>اتصال پایگاه داده در دسترس نیست</strong><span>صفحه را دوباره بارگذاری کنید.</span></div>';
+    function renderPatientLoadError(error) {
+        if (!elements.cardsGrid) return;
+        if (state.loaded) {
+            setText('patientResultsLabel', 'نمایش آخرین داده دریافت‌شده؛ همگام‌سازی جدید ناموفق بود');
             return;
         }
-        try {
-            const health = await window.DB.healthCheck();
-            if (!health.ok) throw health.error || new Error('Database health check failed.');
-            state.patients = await window.DB.getAllPatients();
-            if (window.DB.lastError) throw window.DB.lastError;
-            state.patients.sort((first, second) => new Date(second.updated_at || second.created_at || 0) - new Date(first.updated_at || first.created_at || 0));
-            state.loaded = true;
-            updateMetrics();
-            renderCharts();
-            renderPatients();
-            setText('lastSyncLabel', `آخرین همگام‌سازی: ${new Intl.DateTimeFormat('fa-IR', { hour: '2-digit', minute: '2-digit' }).format(new Date())}`);
-        } catch (error) {
-            console.error(error);
-            elements.cardsGrid.innerHTML = '<div class="error-state"><i class="fas fa-wifi"></i><strong>دریافت اطلاعات با مشکل مواجه شد</strong><span>اتصال شبکه را بررسی و صفحه را دوباره بارگذاری کنید.</span></div>';
+        elements.cardsGrid.innerHTML = `
+            <div class="error-state">
+                <i class="fas fa-database"></i>
+                <strong>دریافت پرونده‌ها با مشکل مواجه شد</strong>
+                <span>وضعیت اتصال را بررسی کنید و دوباره تلاش کنید.</span>
+                <button class="secondary-button patient-retry-button" type="button">
+                    <i class="fas fa-rotate"></i> تلاش دوباره
+                </button>
+            </div>`;
+        elements.cardsGrid.querySelector('.patient-retry-button')?.addEventListener('click', () => {
+            loadDashboardData({ source: 'تلاش دوباره از بخش پرونده‌ها', forceConnectionCheck: true });
+        });
+        if (error) console.warn('[Dashboard] Patient data unavailable.', error);
+    }
+
+    let dashboardLoadPromise = null;
+
+    async function loadDashboardData({ source = 'بارگذاری داشبورد', forceConnectionCheck = false } = {}) {
+        if (dashboardLoadPromise) return dashboardLoadPromise;
+
+        dashboardLoadPromise = (async () => {
+            const health = state.health;
+            health.busy = true;
+            health.source = source;
+            health.lastChecked = new Date();
+            health.error = null;
+            health.errorStage = '';
+            health.databaseStatus = 'checking';
+            health.syncStatus = state.loaded ? 'stale' : 'checking';
+            if (navigator.onLine) health.networkOnline = true;
+            renderDatabaseHealth();
+
+            let operationStage = 'connection';
+            try {
+                if (!window.DB) {
+                    throw new Error('کلاینت پایگاه داده در مرورگر آماده نیست.');
+                }
+
+                if (forceConnectionCheck && navigator.onLine && window.SupabaseConnection?.check) {
+                    window.SupabaseConnection.ready = window.SupabaseConnection.check({ attempts: 2 });
+                    const connected = await window.SupabaseConnection.ready;
+                    if (!connected) throw window.SupabaseConnection.lastError || new Error('ارتباط با سرویس پایگاه داده برقرار نشد.');
+                }
+
+                operationStage = 'database';
+                const healthStartedAt = performance.now();
+                const databaseHealth = await window.DB.healthCheck();
+                health.latency = Math.max(0, performance.now() - healthStartedAt);
+                health.lastChecked = new Date();
+                if (!databaseHealth.ok) throw databaseHealth.error || new Error('بررسی دسترسی پایگاه داده ناموفق بود.');
+
+                health.connectionStatus = window.SupabaseConnection?.status || 'connected';
+                health.databaseStatus = 'healthy';
+                operationStage = 'sync';
+                const patients = await window.DB.getAllPatients();
+                if (window.DB.lastError) throw window.DB.lastError;
+
+                state.patients = patients;
+                state.patients.sort((first, second) => new Date(second.updated_at || second.created_at || 0) - new Date(first.updated_at || first.created_at || 0));
+                state.loaded = true;
+                health.syncStatus = 'healthy';
+                health.lastSuccess = new Date();
+                localStorage.setItem('databaseLastSuccessAt', health.lastSuccess.toISOString());
+                health.error = null;
+                health.errorStage = '';
+                updateMetrics();
+                renderCharts();
+                renderPatients();
+                return true;
+            } catch (error) {
+                console.error(error);
+                health.lastChecked = new Date();
+                health.error = error instanceof Error ? error : new Error(String(error || 'خطای نامشخص'));
+                health.errorStage = operationStage;
+                health.networkOnline = navigator.onLine;
+
+                if (!health.networkOnline) {
+                    health.connectionStatus = 'unavailable';
+                    health.databaseStatus = operationStage === 'database' ? 'error' : health.databaseStatus;
+                    health.syncStatus = state.loaded ? 'stale' : 'error';
+                } else if (operationStage === 'sync') {
+                    health.syncStatus = 'error';
+                    if (health.databaseStatus === 'checking') health.databaseStatus = 'healthy';
+                } else {
+                    health.databaseStatus = 'error';
+                    health.syncStatus = state.loaded ? 'stale' : 'error';
+                }
+                renderPatientLoadError(error);
+                return false;
+            } finally {
+                health.busy = false;
+                renderDatabaseHealth();
+                dashboardLoadPromise = null;
+            }
+        })();
+
+        return dashboardLoadPromise;
+    }
+
+    async function retryDatabaseHealth() {
+        if (state.health.busy) return;
+        state.health.networkOnline = navigator.onLine;
+        state.health.source = 'بررسی دستی مدیر';
+        state.health.lastChecked = new Date();
+        state.health.error = null;
+        state.health.errorStage = '';
+
+        if (!navigator.onLine) {
+            state.health.connectionStatus = 'unavailable';
+            state.health.syncStatus = state.loaded ? 'stale' : 'error';
+            renderDatabaseHealth();
+            return;
         }
+
+        state.health.connectionStatus = 'checking';
+        state.health.databaseStatus = 'checking';
+        state.health.syncStatus = state.loaded ? 'stale' : 'checking';
+        renderDatabaseHealth();
+        await loadDashboardData({ source: 'بررسی دستی مدیر', forceConnectionCheck: true });
+    }
+
+    function handleSupabaseConnection(event) {
+        const nextStatus = event.detail?.status || 'unavailable';
+        state.health.connectionStatus = nextStatus;
+        state.health.networkOnline = navigator.onLine;
+
+        if (nextStatus === 'unavailable') {
+            state.health.errorStage = 'connection';
+            state.health.error = window.SupabaseConnection?.lastError
+                || (event.detail?.message ? new Error(event.detail.message) : state.health.error);
+            state.health.syncStatus = state.loaded ? 'stale' : 'error';
+        } else if (nextStatus === 'connected' && state.health.errorStage === 'connection') {
+            state.health.error = null;
+            state.health.errorStage = '';
+        }
+        renderDatabaseHealth();
+    }
+
+    function handleBrowserOffline() {
+        state.health.networkOnline = false;
+        state.health.connectionStatus = 'unavailable';
+        state.health.source = 'پایش خودکار شبکه مرورگر';
+        state.health.lastChecked = new Date();
+        state.health.errorStage = 'network';
+        state.health.syncStatus = state.loaded ? 'stale' : 'error';
+        renderDatabaseHealth();
+    }
+
+    function handleBrowserOnline() {
+        state.health.networkOnline = true;
+        state.health.connectionStatus = 'checking';
+        state.health.databaseStatus = 'checking';
+        state.health.syncStatus = state.loaded ? 'stale' : 'checking';
+        state.health.source = 'بازیابی خودکار پس از اتصال شبکه';
+        state.health.error = null;
+        state.health.errorStage = '';
+        renderDatabaseHealth();
+
+        window.setTimeout(async () => {
+            if (dashboardLoadPromise) await dashboardLoadPromise;
+            if (navigator.onLine) {
+                await loadDashboardData({ source: 'بازیابی خودکار پس از اتصال شبکه' });
+            }
+        }, 350);
+    }
+
+    function initializeDatabaseHealth() {
+        const connection = window.SupabaseConnection;
+        state.health.networkOnline = navigator.onLine;
+        state.health.connectionStatus = connection?.status || (window.supabase ? 'initializing' : 'unavailable');
+        if (connection?.lastError) {
+            state.health.error = connection.lastError;
+            state.health.errorStage = 'connection';
+        }
+        setDatabaseDetailsExpanded(state.health.detailsExpanded, { persist: false });
+        renderDatabaseHealth();
     }
 
     function openSidebar() {
@@ -493,6 +943,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     applyTheme(savedTheme || preferredTheme);
     updateTodayLabel();
     setView(state.view);
+    initializeDatabaseHealth();
+
+    window.addEventListener('supabase:connection', handleSupabaseConnection);
+    window.addEventListener('offline', handleBrowserOffline);
+    window.addEventListener('online', handleBrowserOnline);
 
     ['themeToggleBtn', 'sidebarThemeBtn', 'desktopThemeBtn', 'mobileThemeBtn'].forEach(id => {
         document.getElementById(id)?.addEventListener('click', toggleTheme);
@@ -507,6 +962,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('gridViewBtn')?.addEventListener('click', () => setView('grid'));
     document.getElementById('listViewBtn')?.addEventListener('click', () => setView('list'));
     document.getElementById('resetStatusFilter')?.addEventListener('click', () => setStatusFilter('all'));
+    elements.databaseDetailsToggle?.addEventListener('click', () => {
+        setDatabaseDetailsExpanded(!state.health.detailsExpanded);
+    });
+    elements.databaseRetryButton?.addEventListener('click', retryDatabaseHealth);
+    elements.databaseStatusShortcut?.addEventListener('click', () => {
+        closeSidebar();
+        setDatabaseDetailsExpanded(true);
+        elements.databaseStatusCenter?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
     adminManagementButton?.addEventListener('click', openUserModal);
     document.getElementById('closeUserModalBtn')?.addEventListener('click', closeUserModal);
     elements.userModal?.addEventListener('click', event => {
@@ -564,5 +1028,5 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    await loadDashboardData();
+    await loadDashboardData({ source: 'بارگذاری اولیه داشبورد' });
 });

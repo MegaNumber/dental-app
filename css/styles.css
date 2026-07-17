@@ -217,12 +217,16 @@
         .field-group input,.field-group select,.field-group textarea{padding:10px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:'Vazirmatn',sans-serif;font-size:var(--text-base);font-weight:400;color:var(--text-primary);background:var(--field-bg);transition:all .25s;outline:none;direction:rtl;line-height:1.5;}
         .field-group input:focus,.field-group select:focus,.field-group textarea:focus{border-color:var(--accent);background:var(--field-bg);box-shadow:0 0 0 3px rgba(37,99,235,.12);}
         .field-group input::placeholder{color:var(--text-tertiary);}
-        .result-field-group{position:relative;}
-        .result-input-shell{position:relative;display:flex;align-items:center;}
-        .result-date-input{padding-left:48px;cursor:pointer;}
+        .result-field-group,.orthodontic-date-field{position:relative;}
+        .jalali-picker-shell{position:relative;}
+        .result-input-shell,.jalali-picker-input-shell{position:relative;display:flex;align-items:center;}
+        .result-date-input,.jalali-date-input{padding-left:48px;cursor:pointer;}
+        .jalali-date-input[readonly]{background:var(--field-bg);}
+        [data-jalali-picker].is-open{z-index:70;}
         .jalali-picker-trigger{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:32px;height:32px;border:none;border-radius:10px;background:transparent;color:var(--accent);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .2s ease,color .2s ease;}
         .jalali-picker-trigger:hover{background:var(--accent-light);color:var(--accent-dark);}
-        .jalali-picker-panel{position:absolute;top:calc(100% + 10px);right:0;width:min(320px,calc(100vw - 32px));padding:14px;background:#fff;border:1px solid var(--border);border-radius:16px;box-shadow:0 20px 44px rgba(15,23,42,.16);z-index:55;}
+        .jalali-picker-trigger:focus-visible,.jalali-picker-nav:focus-visible,.jalali-picker-day:focus-visible,.jalali-picker-action:focus-visible{outline:none;box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 22%,transparent);}
+        .jalali-picker-panel{position:absolute;top:calc(100% + 10px);right:0;width:min(330px,calc(100vw - 32px));padding:14px;background:#fff;border:1px solid var(--border);border-radius:16px;box-shadow:0 20px 44px rgba(15,23,42,.16);z-index:55;direction:rtl;transform-origin:top right;animation:jalaliPickerIn .2s cubic-bezier(.16,1,.3,1) both;}
         .jalali-picker-panel[hidden]{display:none!important;}
         .jalali-picker-toolbar{display:flex;align-items:center;gap:8px;margin-bottom:12px;}
         .jalali-picker-nav{width:34px;height:34px;border:none;border-radius:10px;background:var(--accent-light);color:var(--accent-dark);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s ease;}
@@ -236,13 +240,15 @@
         .jalali-picker-day{border:none;background:transparent;font:inherit;font-size:var(--text-sm);color:var(--text-primary);cursor:pointer;transition:all .2s ease;}
         .jalali-picker-day:hover{background:var(--accent-light);color:var(--accent-dark);}
         .jalali-picker-day.is-selected{background:var(--accent);color:#fff;box-shadow:0 8px 18px rgba(37,99,235,.2);}
-        .jalali-picker-day.is-today{box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--accent) 45%,transparent);}
+        .jalali-picker-day.is-today{box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--accent) 62%,transparent);font-weight:700;}
+        .jalali-picker-day.is-selected.is-today{box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.78),0 8px 18px rgba(37,99,235,.2);}
         .jalali-picker-actions{display:flex;justify-content:space-between;gap:8px;margin-top:12px;}
         .jalali-picker-action{flex:1;border:none;border-radius:10px;padding:9px 12px;font:inherit;font-size:var(--text-sm);font-weight:600;cursor:pointer;transition:all .2s ease;}
         .jalali-picker-action.clear{background:#f8fafc;color:#475569;}
         .jalali-picker-action.clear:hover{background:#e2e8f0;}
         .jalali-picker-action.today{background:var(--accent-light);color:var(--accent-dark);}
         .jalali-picker-action.today:hover{background:var(--accent);color:#fff;}
+        @keyframes jalaliPickerIn{from{opacity:0;transform:translateY(-6px) scale(.985);}to{opacity:1;transform:translateY(0) scale(1);}}
 
         /* ==========================================
            کارت‌ها

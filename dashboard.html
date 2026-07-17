@@ -67,10 +67,15 @@
             </nav>
 
             <div class="sidebar-footer">
-                <div class="clinic-status">
-                    <span class="status-indicator"></span>
-                    <div><strong>سامانه آنلاین است</strong><span id="lastSyncLabel">در حال همگام‌سازی</span></div>
-                </div>
+                <button class="clinic-status" id="databaseStatusShortcut" type="button"
+                    aria-label="مشاهده وضعیت پایگاه داده" aria-controls="databaseStatusCenter">
+                    <span class="status-indicator" aria-hidden="true"></span>
+                    <span class="clinic-status-copy">
+                        <strong id="sidebarSystemStatus">در حال بررسی سامانه</strong>
+                        <span id="lastSyncLabel">در حال همگام‌سازی</span>
+                    </span>
+                    <i class="fas fa-angle-left clinic-status-arrow" aria-hidden="true"></i>
+                </button>
                 <button class="sidebar-profile" id="settingsMenuBtn" type="button" aria-expanded="false" aria-haspopup="true">
                     <span class="profile-avatar"><i class="fas fa-user-doctor"></i></span>
                     <span class="profile-copy"><strong>پزشک کلینیک</strong><small>مدیریت حساب</small></span>
@@ -128,6 +133,101 @@
                     <div class="welcome-actions">
                         <a class="secondary-button" href="#patientsSection"><i class="fas fa-list-check"></i> مشاهده پرونده‌ها</a>
                         <a class="primary-button" href="patient.html?action=new"><i class="fas fa-plus"></i> پذیرش بیمار</a>
+                    </div>
+                </section>
+
+                <section class="database-status-center panel" id="databaseStatusCenter" data-state="checking"
+                    aria-labelledby="databaseStatusTitle">
+                    <header class="database-status-header">
+                        <div class="database-status-heading">
+                            <span class="database-status-icon" aria-hidden="true">
+                                <i class="fas fa-database" id="databaseStatusIcon"></i>
+                                <span class="database-status-pulse"></span>
+                            </span>
+                            <div>
+                                <span class="panel-kicker">سلامت زیرساخت</span>
+                                <div class="database-status-title-row">
+                                    <h2 id="databaseStatusTitle">وضعیت پایگاه داده</h2>
+                                    <span class="database-health-badge" id="databaseHealthBadge">در حال بررسی</span>
+                                </div>
+                                <p id="databaseStatusMessage" aria-live="polite">در حال ارزیابی اتصال و دسترسی به اطلاعات کلینیک...</p>
+                            </div>
+                        </div>
+                        <div class="database-status-actions">
+                            <span class="database-last-check">
+                                <i class="far fa-clock" aria-hidden="true"></i>
+                                <span>آخرین بررسی</span>
+                                <strong id="databaseLastChecked">هنوز انجام نشده</strong>
+                            </span>
+                            <button class="database-details-button" id="databaseDetailsToggle" type="button"
+                                aria-expanded="false" aria-controls="databaseStatusDetails">
+                                <i class="fas fa-sliders" aria-hidden="true"></i>
+                                <span>جزئیات</span>
+                                <i class="fas fa-angle-down database-details-chevron" aria-hidden="true"></i>
+                            </button>
+                            <button class="database-retry-button" id="databaseRetryButton" type="button">
+                                <i class="fas fa-rotate" aria-hidden="true"></i>
+                                <span>بررسی مجدد</span>
+                            </button>
+                        </div>
+                    </header>
+
+                    <div class="database-health-grid" role="list" aria-label="شاخص‌های سلامت سامانه">
+                        <article class="database-health-item" id="networkHealthItem" data-status="checking" role="listitem">
+                            <span class="database-health-item-icon"><i class="fas fa-wifi" aria-hidden="true"></i></span>
+                            <span class="database-health-item-copy">
+                                <small>شبکه مرورگر</small>
+                                <strong id="networkHealthValue">در حال بررسی</strong>
+                                <span id="networkHealthMeta">وضعیت اتصال دستگاه</span>
+                            </span>
+                            <span class="database-health-dot" aria-hidden="true"></span>
+                        </article>
+                        <article class="database-health-item" id="serviceHealthItem" data-status="checking" role="listitem">
+                            <span class="database-health-item-icon"><i class="fas fa-cloud" aria-hidden="true"></i></span>
+                            <span class="database-health-item-copy">
+                                <small>سرویس Supabase</small>
+                                <strong id="serviceHealthValue">در حال اتصال</strong>
+                                <span id="serviceHealthMeta">بررسی دسترسی سرویس</span>
+                            </span>
+                            <span class="database-health-dot" aria-hidden="true"></span>
+                        </article>
+                        <article class="database-health-item" id="databaseHealthItem" data-status="checking" role="listitem">
+                            <span class="database-health-item-icon"><i class="fas fa-server" aria-hidden="true"></i></span>
+                            <span class="database-health-item-copy">
+                                <small>دسترسی داده‌ها</small>
+                                <strong id="databaseAccessValue">در حال ارزیابی</strong>
+                                <span id="databaseAccessMeta">جدول پرونده‌های بیماران</span>
+                            </span>
+                            <span class="database-health-dot" aria-hidden="true"></span>
+                        </article>
+                        <article class="database-health-item" id="latencyHealthItem" data-status="checking" role="listitem">
+                            <span class="database-health-item-icon"><i class="fas fa-gauge-high" aria-hidden="true"></i></span>
+                            <span class="database-health-item-copy">
+                                <small>زمان پاسخ</small>
+                                <strong id="databaseLatencyValue">اندازه‌گیری...</strong>
+                                <span id="databaseLatencyMeta">تا پاسخ پایگاه داده</span>
+                            </span>
+                            <span class="database-health-dot" aria-hidden="true"></span>
+                        </article>
+                    </div>
+
+                    <div class="database-status-details" id="databaseStatusDetails" aria-hidden="true">
+                        <div class="database-status-details-inner">
+                            <div class="database-alert" id="databaseAlert" data-severity="info" role="status">
+                                <span class="database-alert-icon"><i class="fas fa-circle-info" id="databaseAlertIcon" aria-hidden="true"></i></span>
+                                <div>
+                                    <strong id="databaseAlertTitle">بررسی اولیه در حال انجام است</strong>
+                                    <p id="databaseAlertMessage">نتیجه اتصال و همگام‌سازی اطلاعات تا چند لحظه دیگر نمایش داده می‌شود.</p>
+                                    <code id="databaseErrorDetail" class="hidden" dir="ltr"></code>
+                                </div>
+                            </div>
+                            <dl class="database-diagnostics">
+                                <div><dt>آخرین همگام‌سازی موفق</dt><dd id="databaseLastSuccess">ثبت نشده</dd></div>
+                                <div><dt>منبع بررسی</dt><dd id="databaseCheckSource">بارگذاری داشبورد</dd></div>
+                                <div><dt>وضعیت داده نمایشی</dt><dd id="databaseDataFreshness">در انتظار دریافت</dd></div>
+                                <div><dt>راهنمای بازیابی</dt><dd id="databaseRecoveryHint">بررسی خودکار در حال انجام است.</dd></div>
+                            </dl>
+                        </div>
                     </div>
                 </section>
 

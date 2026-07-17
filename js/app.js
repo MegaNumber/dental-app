@@ -341,7 +341,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const PATIENT_DETAIL_ROW_DEFAULT = { label: 'فیلد جدید', placeholder: 'وارد کنید...' };
     const JALALI_MONTHS = ['فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور', 'مهر', 'آبان', 'آذر', 'دی', 'بهمن', 'اسفند'];
     const JALALI_WEEKDAYS = ['ش', 'ی', 'د', 'س', 'چ', 'پ', 'ج'];
-    let activeResultDateField = null;
+    let activeJalaliPicker = null;
 
     function toJalali(gy, gm, gd) {
         const gdm = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
@@ -432,6 +432,17 @@ document.addEventListener('DOMContentLoaded', () => {
         return toPersianDigits(`${jy}/${String(jm).padStart(2, '0')}/${String(jd).padStart(2, '0')}`);
     }
 
+    function formatJalaliDateForStorage({ jy, jm, jd }) {
+        return `${jy}/${String(jm).padStart(2, '0')}/${String(jd).padStart(2, '0')}`;
+    }
+
+    window.JalaliDate = {
+        toStorage(value) {
+            const parsed = parseJalaliDate(value);
+            return parsed ? formatJalaliDateForStorage(parsed) : null;
+        }
+    };
+
     function getTodayJalali() {
         const today = new Date();
         return toJalali(today.getFullYear(), today.getMonth() + 1, today.getDate());
@@ -493,20 +504,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 <label class="result-field-label" for="${escapeHtml(inputId)}"><span class="result-label-text" contenteditable="false" spellcheck="false">${escapeHtml(field.label)}</span></label>
                 ${showDelete ? '<button class="component-delete-btn result-field-remove-btn" type="button" title="حذف سطر" aria-label="حذف سطر"><i class="fas fa-times"></i></button>' : ''}
             </div>`;
-        const inputAttrs = `class="result-field-input${field.fieldType === 'jalali-date' ? ' result-date-input' : ''}" id="${escapeHtml(inputId)}" placeholder="${escapeHtml(field.placeholder)}" value="${escapeHtml(field.value)}"`;
+        const inputAttrs = `class="result-field-input${field.fieldType === 'jalali-date' ? ' result-date-input jalali-date-input' : ''}" id="${escapeHtml(inputId)}" placeholder="${escapeHtml(field.placeholder)}" value="${escapeHtml(field.value)}"`;
 
         if (field.fieldType === 'jalali-date') {
             return `
-                <div class="field-group result-field-group" data-result-key="${escapeHtml(field.key)}" data-result-type="jalali-date" data-result-placeholder="${escapeHtml(field.placeholder)}"${showDelete ? ' data-user-created="true"' : ''}>
+                <div class="field-group result-field-group" data-result-key="${escapeHtml(field.key)}" data-result-type="jalali-date" data-result-placeholder="${escapeHtml(field.placeholder)}" data-jalali-picker${showDelete ? ' data-user-created="true"' : ''}>
                     ${labelMarkup}
                     <div class="jalali-picker-shell">
                         <div class="result-input-shell">
-                            <input type="text" ${inputAttrs} readonly inputmode="none" autocomplete="off">
+                            <input type="text" ${inputAttrs} readonly inputmode="none" autocomplete="off" aria-haspopup="dialog">
                             <button class="jalali-picker-trigger" type="button" aria-label="باز کردن تقویم" aria-expanded="false">
                                 <i class="fas fa-calendar-alt"></i>
                             </button>
                         </div>
-                        <div class="jalali-picker-panel" hidden></div>
+                        <div class="jalali-picker-panel" role="dialog" aria-label="انتخاب تاریخ" hidden></div>
                     </div>
                 </div>`;
         }
@@ -521,7 +532,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderResultFields(fields = RESULT_DEFAULT_FIELDS) {
         const resultGrid = getResultGrid();
         if (!resultGrid) return;
-        closeResultDatePicker();
+        closeJalaliPicker();
         const list = (Array.isArray(fields) && fields.length ? fields : RESULT_DEFAULT_FIELDS).map(normalizeResultField);
         resultGrid.innerHTML = list.map(field => buildResultFieldMarkup(field, false)).join('');
         resultGrid.querySelectorAll('.result-field-remove-btn').forEach(button => button.remove());
@@ -544,32 +555,35 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function closeResultDatePicker() {
-        if (!activeResultDateField) return;
-        activeResultDateField.querySelector('.jalali-picker-panel')?.setAttribute('hidden', '');
-        activeResultDateField.querySelector('.jalali-picker-trigger')?.setAttribute('aria-expanded', 'false');
-        activeResultDateField = null;
+    function closeJalaliPicker() {
+        if (!activeJalaliPicker) return;
+        activeJalaliPicker.querySelector('.jalali-picker-panel')?.setAttribute('hidden', '');
+        activeJalaliPicker.querySelector('.jalali-picker-trigger')?.setAttribute('aria-expanded', 'false');
+        activeJalaliPicker.classList.remove('is-open');
+        activeJalaliPicker = null;
     }
 
-    function setResultDateValue(fieldGroup, dateParts) {
-        const input = fieldGroup?.querySelector('.result-date-input');
+    function setJalaliPickerValue(picker, dateParts) {
+        const input = picker?.querySelector('.jalali-date-input');
         if (!input) return;
         input.value = dateParts ? formatJalaliDate(dateParts) : '';
-        closeResultDatePicker();
+        input.dataset.storageValue = dateParts ? formatJalaliDateForStorage(dateParts) : '';
+        input.removeAttribute('aria-invalid');
+        closeJalaliPicker();
         Autosave.trigger(input);
     }
 
-    function renderResultDatePicker(fieldGroup) {
-        const panel = fieldGroup?.querySelector('.jalali-picker-panel');
-        const input = fieldGroup?.querySelector('.result-date-input');
+    function renderJalaliPicker(picker) {
+        const panel = picker?.querySelector('.jalali-picker-panel');
+        const input = picker?.querySelector('.jalali-date-input');
         if (!panel || !input) return;
 
         const selected = parseJalaliDate(input.value);
         const today = getTodayJalali();
-        const viewYear = Number(fieldGroup.dataset.viewYear) || selected?.jy || today.jy;
-        const viewMonth = Number(fieldGroup.dataset.viewMonth) || selected?.jm || today.jm;
-        fieldGroup.dataset.viewYear = String(viewYear);
-        fieldGroup.dataset.viewMonth = String(viewMonth);
+        const viewYear = Number(picker.dataset.viewYear) || selected?.jy || today.jy;
+        const viewMonth = Number(picker.dataset.viewMonth) || selected?.jm || today.jm;
+        picker.dataset.viewYear = String(viewYear);
+        picker.dataset.viewMonth = String(viewMonth);
 
         const firstWeekday = getJalaliWeekdayIndex(viewYear, viewMonth, 1);
         const daysInMonth = getJalaliMonthLength(viewYear, viewMonth);
@@ -583,7 +597,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const classes = ['jalali-picker-day'];
             if (isSelected) classes.push('is-selected');
             if (isToday) classes.push('is-today');
-            return `<button class="${classes.join(' ')}" type="button" data-jalali-day="${day}">${toPersianDigits(day)}</button>`;
+            const label = `${toPersianDigits(day)} ${JALALI_MONTHS[viewMonth - 1]} ${toPersianDigits(viewYear)}${isToday ? '، امروز' : ''}`;
+            return `<button class="${classes.join(' ')}" type="button" data-jalali-day="${day}" aria-label="${label}" aria-pressed="${isSelected ? 'true' : 'false'}">${toPersianDigits(day)}</button>`;
         }).join('');
 
         panel.innerHTML = `
@@ -607,21 +622,96 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>`;
     }
 
-    function openResultDatePicker(fieldGroup) {
-        if (!fieldGroup) return;
-        if (activeResultDateField && activeResultDateField !== fieldGroup) closeResultDatePicker();
-        const panel = fieldGroup.querySelector('.jalali-picker-panel');
+    function openJalaliPicker(picker) {
+        if (!picker) return;
+        if (activeJalaliPicker && activeJalaliPicker !== picker) closeJalaliPicker();
+        const panel = picker.querySelector('.jalali-picker-panel');
         if (!panel) return;
-        renderResultDatePicker(fieldGroup);
+        renderJalaliPicker(picker);
         panel.removeAttribute('hidden');
-        fieldGroup.querySelector('.jalali-picker-trigger')?.setAttribute('aria-expanded', 'true');
-        activeResultDateField = fieldGroup;
+        picker.querySelector('.jalali-picker-trigger')?.setAttribute('aria-expanded', 'true');
+        picker.classList.add('is-open');
+        activeJalaliPicker = picker;
     }
+
+    document.addEventListener('click', (e) => {
+        const picker = e.target.closest('[data-jalali-picker]');
+        if (!picker) return;
+
+        const trigger = e.target.closest('.jalali-picker-trigger');
+        const input = e.target.closest('.jalali-date-input');
+        if (trigger || input) {
+            e.preventDefault();
+            if (trigger && activeJalaliPicker === picker) closeJalaliPicker();
+            else openJalaliPicker(picker);
+            return;
+        }
+
+        const navButton = e.target.closest('[data-jalali-nav]');
+        if (navButton) {
+            e.preventDefault();
+            let year = Number(picker.dataset.viewYear);
+            let month = Number(picker.dataset.viewMonth);
+            month += navButton.dataset.jalaliNav === 'next' ? 1 : -1;
+            if (month > 12) {
+                month = 1;
+                year += 1;
+            } else if (month < 1) {
+                month = 12;
+                year -= 1;
+            }
+            picker.dataset.viewYear = String(year);
+            picker.dataset.viewMonth = String(month);
+            renderJalaliPicker(picker);
+            return;
+        }
+
+        const dayButton = e.target.closest('[data-jalali-day]');
+        if (dayButton) {
+            e.preventDefault();
+            setJalaliPickerValue(picker, {
+                jy: Number(picker.dataset.viewYear),
+                jm: Number(picker.dataset.viewMonth),
+                jd: Number(dayButton.dataset.jalaliDay)
+            });
+            return;
+        }
+
+        const actionButton = e.target.closest('[data-jalali-action]');
+        if (!actionButton) return;
+        e.preventDefault();
+        if (actionButton.dataset.jalaliAction === 'today') {
+            const today = getTodayJalali();
+            picker.dataset.viewYear = String(today.jy);
+            picker.dataset.viewMonth = String(today.jm);
+            setJalaliPickerValue(picker, today);
+        } else if (actionButton.dataset.jalaliAction === 'clear') {
+            setJalaliPickerValue(picker, null);
+        }
+    });
+
+    document.addEventListener('change', (e) => {
+        const monthSelect = e.target.closest('[data-jalali-month]');
+        const yearSelect = e.target.closest('[data-jalali-year]');
+        if (!monthSelect && !yearSelect) return;
+        const picker = e.target.closest('[data-jalali-picker]');
+        if (!picker) return;
+        picker.dataset.viewMonth = String(Number(picker.querySelector('[data-jalali-month]')?.value || 1));
+        picker.dataset.viewYear = String(Number(picker.querySelector('[data-jalali-year]')?.value || getTodayJalali().jy));
+        renderJalaliPicker(picker);
+    });
+
+    document.addEventListener('keydown', (e) => {
+        const input = e.target.closest('.jalali-date-input');
+        if (!input || !['Enter', ' ', 'ArrowDown'].includes(e.key)) return;
+        e.preventDefault();
+        openJalaliPicker(input.closest('[data-jalali-picker]'));
+    });
 
     function startResultLabelEdit(fieldGroup) {
         const labelEl = fieldGroup?.querySelector('.result-label-text');
         if (!labelEl || labelEl.classList.contains('is-editing')) return;
-        closeResultDatePicker();
+        closeJalaliPicker();
         const originalLabel = labelEl.textContent.replace(/\s+/g, ' ').trim() || 'فیلد جدید';
         labelEl.contentEditable = 'true';
         labelEl.classList.add('is-editing');
@@ -813,7 +903,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (removeButton && resultGrid.contains(removeButton)) {
                 e.preventDefault();
                 e.stopPropagation();
-                closeResultDatePicker();
+                closeJalaliPicker();
                 removeButton.closest('.result-field-group')?.remove();
                 Autosave.trigger();
                 showToast('سطر حذف شد');
@@ -826,84 +916,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.stopPropagation();
                 startResultLabelEdit(labelText.closest('.result-field-group'));
                 return;
-            }
-
-            const dateInput = e.target.closest('.result-date-input');
-            if (dateInput && resultGrid.contains(dateInput)) {
-                e.preventDefault();
-                e.stopPropagation();
-                openResultDatePicker(dateInput.closest('.result-field-group'));
-                return;
-            }
-
-            const pickerTrigger = e.target.closest('.jalali-picker-trigger');
-            if (pickerTrigger && resultGrid.contains(pickerTrigger)) {
-                e.preventDefault();
-                e.stopPropagation();
-                const fieldGroup = pickerTrigger.closest('.result-field-group');
-                if (activeResultDateField === fieldGroup) closeResultDatePicker();
-                else openResultDatePicker(fieldGroup);
-                return;
-            }
-
-            const navButton = e.target.closest('[data-jalali-nav]');
-            if (navButton && resultGrid.contains(navButton)) {
-                e.preventDefault();
-                e.stopPropagation();
-                const fieldGroup = navButton.closest('.result-field-group');
-                let year = Number(fieldGroup.dataset.viewYear);
-                let month = Number(fieldGroup.dataset.viewMonth);
-                month += navButton.dataset.jalaliNav === 'next' ? 1 : -1;
-                if (month > 12) {
-                    month = 1;
-                    year += 1;
-                } else if (month < 1) {
-                    month = 12;
-                    year -= 1;
-                }
-                fieldGroup.dataset.viewYear = String(year);
-                fieldGroup.dataset.viewMonth = String(month);
-                renderResultDatePicker(fieldGroup);
-                return;
-            }
-
-            const dayButton = e.target.closest('[data-jalali-day]');
-            if (dayButton && resultGrid.contains(dayButton)) {
-                e.preventDefault();
-                e.stopPropagation();
-                const fieldGroup = dayButton.closest('.result-field-group');
-                setResultDateValue(fieldGroup, {
-                    jy: Number(fieldGroup.dataset.viewYear),
-                    jm: Number(fieldGroup.dataset.viewMonth),
-                    jd: Number(dayButton.dataset.jalaliDay)
-                });
-                return;
-            }
-
-            const actionButton = e.target.closest('[data-jalali-action]');
-            if (actionButton && resultGrid.contains(actionButton)) {
-                e.preventDefault();
-                e.stopPropagation();
-                const fieldGroup = actionButton.closest('.result-field-group');
-                if (actionButton.dataset.jalaliAction === 'today') {
-                    const today = getTodayJalali();
-                    fieldGroup.dataset.viewYear = String(today.jy);
-                    fieldGroup.dataset.viewMonth = String(today.jm);
-                    setResultDateValue(fieldGroup, today);
-                } else if (actionButton.dataset.jalaliAction === 'clear') {
-                    setResultDateValue(fieldGroup, null);
-                }
-            }
-        });
-
-        resultGrid.addEventListener('change', (e) => {
-            const monthSelect = e.target.closest('[data-jalali-month]');
-            const yearSelect = e.target.closest('[data-jalali-year]');
-            if (monthSelect || yearSelect) {
-                const fieldGroup = e.target.closest('.result-field-group');
-                fieldGroup.dataset.viewMonth = String(Number(fieldGroup.querySelector('[data-jalali-month]')?.value || 1));
-                fieldGroup.dataset.viewYear = String(Number(fieldGroup.querySelector('[data-jalali-year]')?.value || getTodayJalali().jy));
-                renderResultDatePicker(fieldGroup);
             }
         });
     }
@@ -1752,8 +1764,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     document.addEventListener('click', (e) => {
-        if (activeResultDateField && !e.target.closest('.result-field-group[data-result-type="jalali-date"]')) {
-            closeResultDatePicker();
+        if (activeJalaliPicker && !e.target.closest('[data-jalali-picker]')) {
+            closeJalaliPicker();
         }
         if (!e.target.closest('.image-upload-card')) {
             closeImageCardMenus();
@@ -1764,7 +1776,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
-            closeResultDatePicker();
+            closeJalaliPicker();
             closeImageCardMenus();
             closeSectionMenus();
             closeSectionImageEditor();
@@ -2057,6 +2069,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const mobileNumberInput = document.getElementById('mobileNumber');
     const orthodonticStartDateInput = document.getElementById('orthodonticStartDate');
 
+    function setOrthodonticStartDateValue(value = '') {
+        if (!orthodonticStartDateInput) return;
+        const parsedDate = parseJalaliDate(value);
+        orthodonticStartDateInput.value = parsedDate
+            ? formatJalaliDate(parsedDate)
+            : normalizeJalaliDateInput(value);
+        orthodonticStartDateInput.dataset.storageValue = parsedDate
+            ? formatJalaliDateForStorage(parsedDate)
+            : '';
+        orthodonticStartDateInput.toggleAttribute('aria-invalid', Boolean(value && !parsedDate));
+    }
+
     function syncPatientName() {
         const fullName = String(patientNameInput?.value || '').replace(/\s+/g, ' ').trim();
         document.getElementById('nameDisplay').textContent = fullName || 'نام و نام خانوادگی بیمار';
@@ -2088,6 +2112,10 @@ document.addEventListener('DOMContentLoaded', () => {
     orthodonticStartDateInput?.addEventListener('input', () => {
         const normalized = normalizeJalaliDateInput(orthodonticStartDateInput.value);
         if (orthodonticStartDateInput.value !== normalized) orthodonticStartDateInput.value = normalized;
+        const parsedDate = parseJalaliDate(normalized);
+        orthodonticStartDateInput.dataset.storageValue = parsedDate
+            ? formatJalaliDateForStorage(parsedDate)
+            : '';
         orthodonticStartDateInput.removeAttribute('aria-invalid');
         Autosave.trigger(orthodonticStartDateInput);
     });
@@ -2096,7 +2124,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const rawValue = orthodonticStartDateInput.value.trim();
         const parsedDate = parseJalaliDate(rawValue);
         orthodonticStartDateInput.toggleAttribute('aria-invalid', Boolean(rawValue && !parsedDate));
-        if (parsedDate) orthodonticStartDateInput.value = formatJalaliDate(parsedDate);
+        if (parsedDate) {
+            orthodonticStartDateInput.value = formatJalaliDate(parsedDate);
+            orthodonticStartDateInput.dataset.storageValue = formatJalaliDateForStorage(parsedDate);
+        }
     });
 
     document.getElementById('fileNumber')?.addEventListener('input', (event) => {
@@ -2923,16 +2954,15 @@ document.addEventListener('DOMContentLoaded', () => {
         Autosave.resetForNewPatient();
         clearTimeout(treatmentSummarySaveTimer);
         clearTimeout(treatmentSummaryBlurTimer);
-        closeResultDatePicker();
+        closeJalaliPicker();
         closeSectionImageEditor();
         closeImageCardMenus();
         closeSectionMenus();
 
         patientNameInput.value = nextIdentity.name || '';
         mobileNumberInput.value = normalizeMobileNumber(nextIdentity.mobile || '');
-        orthodonticStartDateInput.value = normalizeJalaliDateInput(nextIdentity.orthodonticStartDate || '');
+        setOrthodonticStartDateValue(nextIdentity.orthodonticStartDate || '');
         mobileNumberInput.removeAttribute('aria-invalid');
-        orthodonticStartDateInput.removeAttribute('aria-invalid');
         fileNumberInput.value = normalizeFileNumber(nextIdentity.fileNumber || '');
         syncPatientName();
         document.getElementById('fileDisplay').textContent = fileNumberInput.value || '---';

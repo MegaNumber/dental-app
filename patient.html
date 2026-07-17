@@ -82,9 +82,17 @@
                     <label for="patientName">نام و نام خانوادگی</label>
                     <input type="text" id="patientName" placeholder="نام و نام خانوادگی بیمار" autocomplete="name">
                 </div>
-                <div class="field-group">
+                <div class="field-group orthodontic-date-field" data-jalali-picker>
                     <label for="orthodonticStartDate">تاریخ شروع ارتودنسی</label>
-                    <input type="text" id="orthodonticStartDate" class="numeric-input" placeholder="مثلاً ۱۴۰۵/۰۳/۱۵" inputmode="numeric" autocomplete="off" maxlength="10">
+                    <div class="jalali-picker-shell">
+                        <div class="jalali-picker-input-shell">
+                            <input type="text" id="orthodonticStartDate" class="numeric-input jalali-date-input" placeholder="مثلاً ۱۴۰۵/۰۳/۱۵" inputmode="none" autocomplete="off" maxlength="10" readonly aria-haspopup="dialog" aria-controls="orthodonticStartDatePicker">
+                            <button class="jalali-picker-trigger" type="button" aria-label="باز کردن تقویم تاریخ شروع ارتودنسی" aria-expanded="false" aria-controls="orthodonticStartDatePicker">
+                                <i class="fas fa-calendar-alt"></i>
+                            </button>
+                        </div>
+                        <div class="jalali-picker-panel" id="orthodonticStartDatePicker" role="dialog" aria-label="انتخاب تاریخ شروع ارتودنسی" hidden></div>
+                    </div>
                 </div>
                 <div class="field-group patient-status-field">
                     <label for="patientStatus">وضعیت بیمار</label>
@@ -301,7 +309,6 @@
 
     <!-- فراخوانی فایل‌های جاوا اسکریپت -->
     <script src="js/supabaseClient.js"></script>
-    <script src="js/auth.js"></script>
     <script src="js/database.js"></script>
     <script src="js/autosave.js"></script>
     <script src="js/print.js"></script>

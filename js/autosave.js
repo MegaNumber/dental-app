@@ -56,7 +56,7 @@ const Autosave = {
             name: document.getElementById('patientName').value.trim(),
             file_number: fileNumber,
             mobile: document.getElementById('mobileNumber')?.value.trim() || null,
-            orthodontic_start_date: document.getElementById('orthodonticStartDate')?.value.trim() || null,
+            orthodontic_start_date: this.normalizeJalaliDateForStorage(document.getElementById('orthodonticStartDate')?.value),
             cover_url: document.getElementById('coverZone').getAttribute('data-db-url') || null,
             profile_url: document.getElementById('profilePicZone').getAttribute('data-db-url') || null,
             treatments: this.collectTreatments(),
@@ -86,6 +86,22 @@ const Autosave = {
                 this.trigger();
             }
         }
+    },
+
+    normalizeJalaliDateForStorage(value) {
+        if (window.JalaliDate?.toStorage) {
+            return window.JalaliDate.toStorage(value);
+        }
+        const persianDigits = '۰۱۲۳۴۵۶۷۸۹';
+        const arabicDigits = '٠١٢٣٤٥٦٧٨٩';
+        const normalized = String(value || '')
+            .trim()
+            .replace(/[۰-۹]/g, digit => String(persianDigits.indexOf(digit)))
+            .replace(/[٠-٩]/g, digit => String(arabicDigits.indexOf(digit)))
+            .replace(/[.-]/g, '/');
+        const match = normalized.match(/^(\d{3,4})\/(\d{1,2})\/(\d{1,2})$/);
+        if (!match) return null;
+        return `${match[1]}/${match[2].padStart(2, '0')}/${match[3].padStart(2, '0')}`;
     },
 
     hasPendingUploads() {
